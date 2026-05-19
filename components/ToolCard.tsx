@@ -5,7 +5,7 @@ import type { Tool } from '@/lib/types'
 interface Props { tool: Tool }
 
 export default function ToolCard({ tool }: Props) {
-  const Icon = (Icons as Record<string, React.FC<{ className?: string }>>)[tool.icon] ?? Icons.Wrench
+  const Icon = (Icons as unknown as Record<string, React.FC<{ className?: string }>>)[tool.icon] ?? Icons.Wrench
   const iconBg = tool.color === 'blue' ? 'bg-blue-600' : 'bg-orange-500'
   const ctaColor = tool.color === 'blue' ? 'text-blue-600' : 'text-orange-500'
 

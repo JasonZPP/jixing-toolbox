@@ -1,4 +1,4 @@
-import type { Tool, ToolCategory } from './types'
+import type { Tool } from './types'
 
 export const tools: Tool[] = [
   // 广告工具 (4)
