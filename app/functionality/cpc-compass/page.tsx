@@ -1,7 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 import { calcFbaUs, getSizeStandard } from '@/lib/calc/fba-us'
+import { Save, Trash2, ChevronDown, ChevronUp, BookOpen } from 'lucide-react'
 
 interface Category { name: string; rate: number }
 const CATEGORIES: Category[] = [
@@ -41,6 +42,25 @@ const SIZE_LABEL: Record<string, string> = {
 
 type FbaMode = 'auto' | 'manual'
 
+interface CalcRecord {
+  id: string
+  name: string
+  savedAt: string
+  cost: number; shipping: number; categoryIdx: number; price: number
+  returnRate: number; returnFee: number; rate: number; cvr: number; targetAcos: number
+  fbaMode: FbaMode; manualFba: number
+  length: number; width: number; height: number; weightG: number; isPeak: boolean
+  grossMargin: number; netProfit: number; recommendedCpc: number
+}
+
+const STORAGE_KEY = 'cpc_compass_records_v1'
+
+function loadRecords(): CalcRecord[] {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+  } catch { return [] }
+}
+
 export default function CpcCompassPage() {
   const [cost, setCost] = useState(8)
   const [shipping, setShipping] = useState(1.5)
@@ -52,7 +72,6 @@ export default function CpcCompassPage() {
   const [cvr, setCvr] = useState(10)
   const [targetAcos, setTargetAcos] = useState(20)
 
-  // FBA fee
   const [fbaMode, setFbaMode] = useState<FbaMode>('auto')
   const [manualFba, setManualFba] = useState(5.5)
   const [length, setLength] = useState(20)
@@ -60,6 +79,13 @@ export default function CpcCompassPage() {
   const [height, setHeight] = useState(5)
   const [weightG, setWeightG] = useState(300)
   const [isPeak, setIsPeak] = useState(false)
+
+  const [records, setRecords] = useState<CalcRecord[]>([])
+  const [showRecords, setShowRecords] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const [showSaveInput, setShowSaveInput] = useState(false)
+
+  useEffect(() => { setRecords(loadRecords()) }, [])
 
   const weightOz = weightG / 28.35
   const lengthIn = length / 2.54
@@ -90,6 +116,39 @@ export default function CpcCompassPage() {
 
   const applyStrategy = (s: Strategy) => setTargetAcos(Math.max(0, marginRate * 100 * s.factor))
 
+  const saveRecord = () => {
+    const name = saveName.trim() || `记录 ${new Date().toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+    const rec: CalcRecord = {
+      id: Date.now().toString(),
+      name,
+      savedAt: new Date().toLocaleString('zh-CN'),
+      cost, shipping, categoryIdx, price, returnRate, returnFee, rate, cvr, targetAcos,
+      fbaMode, manualFba, length, width, height, weightG, isPeak,
+      grossMargin, netProfit, recommendedCpc,
+    }
+    const next = [rec, ...records].slice(0, 30)
+    setRecords(next)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    setSaveName('')
+    setShowSaveInput(false)
+    setShowRecords(true)
+  }
+
+  const loadRecord = (r: CalcRecord) => {
+    setCost(r.cost); setShipping(r.shipping); setCategoryIdx(r.categoryIdx); setPrice(r.price)
+    setReturnRate(r.returnRate); setReturnFee(r.returnFee); setRate(r.rate); setCvr(r.cvr)
+    setTargetAcos(r.targetAcos); setFbaMode(r.fbaMode); setManualFba(r.manualFba)
+    setLength(r.length); setWidth(r.width); setHeight(r.height); setWeightG(r.weightG)
+    setIsPeak(r.isPeak)
+    setShowRecords(false)
+  }
+
+  const deleteRecord = (id: string) => {
+    const next = records.filter(r => r.id !== id)
+    setRecords(next)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  }
+
   const ic = 'w-32 text-right border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40'
   const icSm = 'w-20 text-right border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40'
 
@@ -119,7 +178,7 @@ export default function CpcCompassPage() {
               <h3 className="text-sm font-semibold text-gray-700">FBA 配送费</h3>
               <div className="flex gap-1">
                 {([['auto', '按尺寸自动测算'], ['manual', '手动输入']] as [FbaMode, string][]).map(([m, l]) => (
-                  <button key={m} onClick={() => setFbaMode(m)}
+                  <button key={m} onClick={() => setFbaMode(m as FbaMode)}
                     className={`px-2.5 py-1 rounded text-xs font-medium ${fbaMode === m ? 'bg-[#5b5bd6] text-white' : 'bg-slate-100 text-gray-600 hover:bg-slate-200'}`}>{l}</button>
                 ))}
               </div>
@@ -222,6 +281,73 @@ export default function CpcCompassPage() {
               <p className="mt-3 text-xs text-orange-600 bg-orange-50 rounded-lg p-3">
                 综合利润为负：目标 ACOS {targetAcos}% 已超过盈亏平衡 ACOS {(breakevenAcos * 100).toFixed(1)}%，广告花费过高。
               </p>
+            )}
+          </div>
+
+          {/* 测算记录管理 */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                <BookOpen className="h-4 w-4 text-[#5b5bd6]"/>
+                测算记录管理
+              </h3>
+              <div className="flex gap-2">
+                <button onClick={() => setShowSaveInput(v => !v)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#5b5bd6] text-white text-xs font-medium hover:bg-[#4a4abf] transition-colors">
+                  <Save className="h-3.5 w-3.5"/> 保存当前
+                </button>
+                {records.length > 0 && (
+                  <button onClick={() => setShowRecords(v => !v)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 text-gray-600 text-xs font-medium hover:bg-slate-200 transition-colors">
+                    {showRecords ? <ChevronUp className="h-3.5 w-3.5"/> : <ChevronDown className="h-3.5 w-3.5"/>}
+                    {records.length} 条记录
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {showSaveInput && (
+              <div className="flex gap-2 mb-3">
+                <input
+                  value={saveName}
+                  onChange={e => setSaveName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && saveRecord()}
+                  placeholder="输入记录名称（可选）"
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40"
+                  autoFocus
+                />
+                <button onClick={saveRecord}
+                  className="px-4 py-2 rounded-lg bg-[#5b5bd6] text-white text-sm font-medium hover:bg-[#4a4abf]">
+                  确认保存
+                </button>
+                <button onClick={() => { setShowSaveInput(false); setSaveName('') }}
+                  className="px-3 py-2 rounded-lg bg-slate-100 text-gray-600 text-sm hover:bg-slate-200">
+                  取消
+                </button>
+              </div>
+            )}
+
+            {showRecords && records.length > 0 && (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {records.map(r => (
+                  <div key={r.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2.5 hover:bg-[#5b5bd6]/5 transition-colors">
+                    <button onClick={() => loadRecord(r)} className="flex-1 text-left">
+                      <p className="text-sm font-medium text-gray-700">{r.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        售价 ${r.price} · 毛利 ${r.grossMargin.toFixed(2)} · CPC ${r.recommendedCpc.toFixed(2)} · {r.savedAt}
+                      </p>
+                    </button>
+                    <button onClick={() => deleteRecord(r.id)}
+                      className="ml-3 p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                      <Trash2 className="h-4 w-4"/>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {records.length === 0 && (
+              <p className="text-xs text-gray-400 text-center py-3">暂无保存记录，点击「保存当前」将当前测算存档</p>
             )}
           </div>
         </div>
