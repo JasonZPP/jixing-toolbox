@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import * as Icons from 'lucide-react'
 import { tools, toolsByCategory, categoryLabels } from '@/lib/tools'
@@ -14,6 +14,8 @@ const CATEGORIES = [
   { key: 'other', label: '其他', count: toolsByCategory.other.length },
 ] as const
 
+type CategoryKey = (typeof CATEGORIES)[number]['key']
+
 const CATEGORY_ORDER = ['ad', 'ops', 'image', 'other'] as const
 
 function ToolIcon({ name }: { name: string }) {
@@ -24,9 +26,20 @@ function ToolIcon({ name }: { name: string }) {
 }
 
 export default function HomePage() {
-  type CategoryKey = 'all' | 'ad' | 'ops' | 'image' | 'other'
   const [query, setQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('all')
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        searchRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   const filtered = useMemo(
     () => filterTools(tools, query, activeCategory),
@@ -112,9 +125,11 @@ export default function HomePage() {
 
         {/* Search + Category Tabs */}
         <div className="px-5 pt-4 pb-3 border-b border-black/[0.04]">
+          <h1 className="md:hidden text-sm font-black text-gray-800 mb-3">极星工具箱</h1>
           <div className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-xl px-4 py-2.5 mb-3">
             <Icons.Search className="w-4 h-4 text-black/25 flex-shrink-0" />
             <input
+              ref={searchRef}
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
