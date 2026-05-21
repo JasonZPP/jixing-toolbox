@@ -39,7 +39,7 @@ export default function NaturalTrafficPage() {
               <thead><tr className="border-b bg-slate-50 text-xs text-gray-500 uppercase">
                 <th className="p-3 text-left">搜索词</th><th className="p-3 text-right">展示</th>
                 <th className="p-3 text-right">点击</th><th className="p-3 text-right">订单</th>
-                <th className="p-3 text-right">CTR</th>
+                <th className="p-3 text-right">CTR</th><th className="p-3 text-right">CVR</th>
               </tr></thead>
               <tbody>
                 {rows.sort((a,b)=>b.clicks-a.clicks).slice(0,100).map((r,i)=>(
@@ -47,6 +47,7 @@ export default function NaturalTrafficPage() {
                     <td className="p-3">{r.term}</td><td className="p-3 text-right">{r.impressions}</td>
                     <td className="p-3 text-right">{r.clicks}</td><td className="p-3 text-right">{r.orders}</td>
                     <td className="p-3 text-right">{r.impressions>0?((r.clicks/r.impressions)*100).toFixed(2)+'%':'—'}</td>
+                    <td className="p-3 text-right">{r.clicks>0?((r.orders/r.clicks)*100).toFixed(1)+'%':'—'}</td>
                   </tr>
                 ))}
               </tbody>
