@@ -25,6 +25,121 @@ interface MultiProduct {
 
 let nextId = 1
 
+// ─── Isometric Packing Diagram ───
+// prodA → fits along cL (length), prodB → fits along cW (depth), prodC → fits along cH (height)
+function PackingDiagram({ cL, cW, cH, prodA, prodB, prodC, W = 280, H = 200 }: {
+  cL: number; cW: number; cH: number
+  prodA: number; prodB: number; prodC: number
+  W?: number; H?: number
+}) {
+  if (!cL || !cW || !cH || !prodA || !prodB || !prodC) return null
+  const nx = Math.floor(cL / prodA)   // columns along length
+  const nz = Math.floor(cW / prodB)   // columns along depth
+  const ny = Math.floor(cH / prodC)   // layers along height
+  if (!nx || !ny || !nz) return null
+
+  const C30 = 0.8660254, S30 = 0.5
+  const PAD = Math.round(Math.min(W, H) * 0.14)
+  const S = Math.min(
+    (W - PAD * 2) / ((cL + cW) * C30),
+    (H - PAD * 2.2) / ((cL + cW) * S30 + cH),
+  )
+  const ox = W / 2 + (cW - cL) * C30 * S / 2
+  const oy = H - PAD * 0.9
+
+  const iso = (r: number, h: number, d: number): [number, number] => [
+    ox + (r - d) * C30 * S,
+    oy - ((r + d) * S30 + h) * S,
+  ]
+  const P = (arr: [number, number][]) => arr.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+  type L4 = [number, number, number, number]
+
+  // Full carton faces
+  const FF = [iso(0,0,0), iso(cL,0,0), iso(cL,cH,0), iso(0,cH,0)]
+  const RF = [iso(cL,0,0), iso(cL,0,cW), iso(cL,cH,cW), iso(cL,cH,0)]
+  const TF = [iso(0,cH,0), iso(cL,cH,0), iso(cL,cH,cW), iso(0,cH,cW)]
+
+  // Occupied sub-region per face
+  const FO = [iso(0,0,0), iso(nx*prodA,0,0), iso(nx*prodA,ny*prodC,0), iso(0,ny*prodC,0)]
+  const RO = [iso(cL,0,0), iso(cL,0,nz*prodB), iso(cL,ny*prodC,nz*prodB), iso(cL,ny*prodC,0)]
+  const TO = [iso(0,cH,0), iso(nx*prodA,cH,0), iso(nx*prodA,cH,nz*prodB), iso(0,cH,nz*prodB)]
+
+  // Grid lines only over occupied region
+  const FL: L4[] = []
+  for (let i = 1; i <= nx; i++) { const [x1,y1]=iso(i*prodA,0,0); const [x2,y2]=iso(i*prodA,ny*prodC,0); FL.push([x1,y1,x2,y2]) }
+  for (let j = 1; j <= ny; j++) { const [x1,y1]=iso(0,j*prodC,0); const [x2,y2]=iso(nx*prodA,j*prodC,0); FL.push([x1,y1,x2,y2]) }
+  const RL: L4[] = []
+  for (let k = 1; k <= nz; k++) { const [x1,y1]=iso(cL,0,k*prodB); const [x2,y2]=iso(cL,ny*prodC,k*prodB); RL.push([x1,y1,x2,y2]) }
+  for (let j = 1; j <= ny; j++) { const [x1,y1]=iso(cL,j*prodC,0); const [x2,y2]=iso(cL,j*prodC,nz*prodB); RL.push([x1,y1,x2,y2]) }
+  const TL: L4[] = []
+  for (let i = 1; i <= nx; i++) { const [x1,y1]=iso(i*prodA,cH,0); const [x2,y2]=iso(i*prodA,cH,nz*prodB); TL.push([x1,y1,x2,y2]) }
+  for (let k = 1; k <= nz; k++) { const [x1,y1]=iso(0,cH,k*prodB); const [x2,y2]=iso(nx*prodA,cH,k*prodB); TL.push([x1,y1,x2,y2]) }
+
+  // Hidden back edges (dashed)
+  const BE: [[number,number],[number,number]][] = [
+    [iso(0,0,0), iso(0,0,cW)], [iso(0,0,cW), iso(cL,0,cW)], [iso(0,0,cW), iso(0,cH,cW)],
+  ]
+
+  // Dimension label anchor points
+  const [lLx, lLy] = iso(cL / 2, 0, 0)   // front bottom center → cL label below
+  const [lHy] = [oy - cH / 2 * S]         // midpoint of left vertical edge
+  const [lWx, lWy] = iso(cL, 0, cW / 2)  // right face bottom center → cW label
+
+  const util = Math.round(nx * prodA * ny * prodC * nz * prodB / (cL * cW * cH) * 100)
+
+  return (
+    <div className="flex flex-col items-center select-none">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="max-w-full overflow-visible">
+        {/* Hidden back edges */}
+        {BE.map(([a, b], i) => (
+          <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#9ca3af" strokeWidth="0.8" strokeDasharray="3,2"/>
+        ))}
+
+        {/* Face base (waste area = lighter) */}
+        <polygon points={P(FF)} fill="#f1efff" stroke="none"/>
+        <polygon points={P(RF)} fill="#e8e5fe" stroke="none"/>
+        <polygon points={P(TF)} fill="#f7f6ff" stroke="none"/>
+
+        {/* Occupied region highlight */}
+        <polygon points={P(FO)} fill="#c4b5fd"/>
+        <polygon points={P(RO)} fill="#b4a3fc"/>
+        <polygon points={P(TO)} fill="#d4c7fe"/>
+
+        {/* Grid lines */}
+        {FL.map(([x1,y1,x2,y2],i) => <line key={`f${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#6d28d9" strokeWidth="0.65" opacity="0.85"/>)}
+        {RL.map(([x1,y1,x2,y2],i) => <line key={`r${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#5b21b6" strokeWidth="0.65" opacity="0.85"/>)}
+        {TL.map(([x1,y1,x2,y2],i) => <line key={`t${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#4c1d95" strokeWidth="0.65" opacity="0.85"/>)}
+
+        {/* Face outlines */}
+        <polygon points={P(FF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
+        <polygon points={P(RF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
+        <polygon points={P(TF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
+
+        {/* Dimension labels */}
+        <text x={lLx} y={lLy + 13} textAnchor="middle" fontSize="9" fill="#6b7280">长 {cL}cm</text>
+        <text x={ox - 10} y={lHy + 3} textAnchor="end" fontSize="9" fill="#6b7280">高 {cH}cm</text>
+        <text x={lWx + 7} y={lWy + 10} textAnchor="start" fontSize="9" fill="#6b7280">宽 {cW}cm</text>
+      </svg>
+
+      {/* Legend */}
+      <div className="flex flex-wrap justify-center items-center gap-x-3 gap-y-0.5 text-xs mt-1 px-2">
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 rounded-sm bg-[#c4b5fd] border border-[#6d28d9]/40"/>
+          <span className="text-gray-500">产品占用</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 rounded-sm bg-[#f1efff] border border-[#9ca3af]/40"/>
+          <span className="text-gray-500">空余空间</span>
+        </span>
+        <span className="font-semibold text-[#5b5bd6]">
+          {nx}列 × {ny}层 × {nz}深 = {nx * ny * nz} 件/箱
+        </span>
+        <span className="text-gray-400">利用率 {util}%</span>
+      </div>
+    </div>
+  )
+}
+
 function CartonConfig({ cL, cW, cH, cWt, volDiv, customDiv, setCL, setCW, setCH, setCWt, setVolDiv, setCustomDiv }: {
   cL: number; cW: number; cH: number; cWt: number; volDiv: number; customDiv: number
   setCL: (v: number) => void; setCW: (v: number) => void; setCH: (v: number) => void
@@ -77,6 +192,7 @@ export default function CartonCalcPage() {
     { id: nextId++, name: '产品 B', pL: 12, pW: 10, pH: 6, pWt: 0.3, qty: 20 },
   ])
 
+  // Single-product calcs
   const activeDiv = VOL_DIVS.includes(volDiv) ? volDiv : customDiv
   const cartonVolWt = (cL * cW * cH) / activeDiv
   const orientations = getOrientations(pL, pW, pH, cL, cW, cH)
@@ -84,6 +200,9 @@ export default function CartonCalcPage() {
   const smartCartons = best && best.qty > 0 ? Math.ceil(totalQty / best.qty) : 0
   const qtyPerCarton = knownCartons > 0 ? Math.floor(totalQty / knownCartons) : 0
   const remainder = totalQty % knownCartons
+
+  // Parse best orientation for diagram (a×b×c → prodA along cL, prodB along cW, prodC along cH)
+  const bestParts = best ? best.label.split('×').map(Number) : [0, 0, 0]
 
   const addProduct = () => setProducts(p => [...p, { id: nextId++, name: `产品 ${String.fromCharCode(65 + p.length)}`, pL: 15, pW: 10, pH: 8, pWt: 0.3, qty: 20 }])
   const removeProduct = (id: number) => setProducts(p => p.filter(x => x.id !== id))
@@ -94,18 +213,20 @@ export default function CartonCalcPage() {
   const multiCartonVol = multiCL * multiCW * multiCH
   const multiCartonVolWt = multiCartonVol / multiActiveDiv
 
-  // — Separate mode —
+  // Separate mode
   const sepResults = products.map(p => {
     const ors = getOrientations(p.pL, p.pW, p.pH, multiCL, multiCW, multiCH)
     const b = ors[0]
     const perCarton = b ? b.qty : 0
     const cartons = perCarton > 0 ? Math.ceil(p.qty / perCarton) : 0
-    return { name: p.name, label: b ? b.label : '—', perCarton, cartons, totalWt: cartons > 0 ? cartons * (multiCWt + perCarton * p.pWt) : 0 }
+    const parts = b ? b.label.split('×').map(Number) : [0, 0, 0]
+    return { name: p.name, label: b ? b.label : '—', perCarton, cartons, parts,
+      totalWt: cartons > 0 ? cartons * (multiCWt + perCarton * p.pWt) : 0 }
   })
   const sepTotal = sepResults.reduce((s, r) => s + r.cartons, 0)
   const sepTotalWt = sepResults.reduce((s, r) => s + r.totalWt, 0)
 
-  // — Mixed mode — (volume-based proportional distribution)
+  // Mixed mode
   const totalProdVol = products.reduce((s, p) => s + p.pL * p.pW * p.pH * p.qty, 0)
   const totalProdWt = products.reduce((s, p) => s + p.pWt * p.qty, 0)
   const mixByVol = multiCartonVol > 0 ? Math.ceil(totalProdVol / multiCartonVol) : 1
@@ -117,10 +238,9 @@ export default function CartonCalcPage() {
   const mixVolPerCarton = products.reduce((s, p) => s + p.pL * p.pW * p.pH * Math.floor(p.qty / mixedN), 0)
   const mixWtPerCarton = multiCWt + products.reduce((s, p) => s + p.pWt * Math.floor(p.qty / mixedN), 0)
   const mixVolUtil = multiCartonVol > 0 ? (mixVolPerCarton / multiCartonVol * 100) : 0
-  const mixTotalWt = mixedN * mixWtPerCarton
   const mixHasExtra = mixedPerCarton.some(p => p.extra > 0)
 
-  // — Split mode (亚马逊分仓等比) —
+  // Split mode
   const splitN = Math.max(targetCartons, 1)
   const splitUnder5 = splitN < 5
   const splitPerCarton = products.map(p => ({ name: p.name, base: Math.floor(p.qty / splitN), extra: p.qty % splitN }))
@@ -129,11 +249,8 @@ export default function CartonCalcPage() {
   const splitVolUtil = multiCartonVol > 0 ? (splitVolPerCarton / multiCartonVol * 100) : 0
   const splitFits = splitVolPerCarton <= multiCartonVol
   const splitHasRemainder = splitPerCarton.some(p => p.extra > 0)
-  const splitTotalWt = splitN * splitWtPerCarton
-  // suggest qty adjustments to make perfectly divisible
   const splitAdjusted = products.map(p => {
-    const rem = p.qty % splitN
-    if (rem === 0) return null
+    const rem = p.qty % splitN; if (rem === 0) return null
     return { name: p.name, current: p.qty, suggested: p.qty - rem }
   }).filter(Boolean)
 
@@ -141,7 +258,7 @@ export default function CartonCalcPage() {
   const icNarrow = 'w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40 text-right'
 
   return (
-    <ToolLayout title="外箱装箱计算器" description="6方向智能测算最优装箱方案，支持混装与亚马逊分仓等比">
+    <ToolLayout title="外箱装箱计算器" description="6方向智能测算最优装箱方案，含物理堆放示意图">
       <div className="space-y-5">
         <div className="flex gap-2 flex-wrap">
           {([['smart', '智能测算箱数'], ['known', '已知箱数分配'], ['multi', '多品装箱']] as [Mode, string][]).map(([m, l]) => (
@@ -152,8 +269,10 @@ export default function CartonCalcPage() {
           ))}
         </div>
 
-        {mode !== 'multi' ? (
+        {/* ── Single-product modes ── */}
+        {mode !== 'multi' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Left: inputs */}
             <div className="space-y-4">
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
                 <h3 className="text-sm font-semibold text-gray-700">产品尺寸 (cm) & 重量</h3>
@@ -197,6 +316,8 @@ export default function CartonCalcPage() {
                 </div>
               </div>
             </div>
+
+            {/* Right: results */}
             <div className="space-y-4">
               {mode === 'smart' ? (
                 <>
@@ -255,12 +376,24 @@ export default function CartonCalcPage() {
                   </div>
                 </div>
               )}
+
+              {/* Packing diagram */}
+              {best && best.qty > 0 && (
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">堆放示意图（最优方向）</h3>
+                  <PackingDiagram
+                    cL={cL} cW={cW} cH={cH}
+                    prodA={bestParts[0]} prodB={bestParts[1]} prodC={bestParts[2]}
+                  />
+                </div>
+              )}
             </div>
           </div>
-        ) : (
-          /* ── Multi-product mode ── */
+        )}
+
+        {/* ── Multi-product mode ── */}
+        {mode === 'multi' && (
           <div className="space-y-4">
-            {/* Sub-mode tabs */}
             <div className="flex gap-1.5 bg-slate-100 rounded-xl p-1 w-fit">
               {([
                 ['separate', '各自独立装箱'],
@@ -274,11 +407,9 @@ export default function CartonCalcPage() {
               ))}
             </div>
 
-            {/* Shared carton config */}
             <CartonConfig cL={multiCL} cW={multiCW} cH={multiCH} cWt={multiCWt} volDiv={multiVolDiv} customDiv={multiCustomDiv}
               setCL={setMultiCL} setCW={setMultiCW} setCH={setMultiCH} setCWt={setMultiCWt} setVolDiv={setMultiVolDiv} setCustomDiv={setMultiCustomDiv}/>
 
-            {/* Mode-specific param */}
             {multiSubMode === 'mixed' && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-4">
                 <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0"/>
@@ -303,13 +434,11 @@ export default function CartonCalcPage() {
                       className="w-20 border border-blue-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 text-right"/>
                   </div>
                 </div>
-                {splitUnder5 && (
-                  <p className="mt-2 text-xs text-orange-600 font-medium">当前 {splitN} 箱，不满足亚马逊 5 箱最低要求，无法享受免配置费优惠。</p>
-                )}
+                {splitUnder5 && <p className="mt-2 text-xs text-orange-600 font-medium">当前 {splitN} 箱，不满足亚马逊 5 箱最低要求，无法享受免配置费优惠。</p>}
               </div>
             )}
 
-            {/* Shared product table */}
+            {/* Product table */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-gray-700">产品列表</h3>
@@ -358,91 +487,108 @@ export default function CartonCalcPage() {
               </div>
             </div>
 
-            {/* ── Separate results ── */}
+            {/* ── Separate results + per-product diagrams ── */}
             {multiSubMode === 'separate' && (
-              <div className="bg-[#5b5bd6]/5 border border-[#5b5bd6]/20 rounded-xl p-5">
-                <h3 className="text-sm font-bold text-[#5b5bd6] mb-3">各产品最优装箱方案</h3>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-gray-500 border-b border-[#5b5bd6]/15">
-                      <th className="text-left pb-2 font-medium">产品</th>
-                      <th className="text-center pb-2 font-medium">最优方向</th>
-                      <th className="text-center pb-2 font-medium">每箱件数</th>
-                      <th className="text-center pb-2 font-medium">需要箱数</th>
-                      <th className="text-right pb-2 font-medium">总毛重</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#5b5bd6]/10">
-                    {sepResults.map(r => (
-                      <tr key={r.name}>
-                        <td className="py-2 text-gray-700 font-medium">{r.name}</td>
-                        <td className="py-2 text-center">{r.perCarton > 0 ? <span className="font-mono text-xs text-gray-600">{r.label} cm</span> : <span className="text-red-500 text-xs">装不下</span>}</td>
-                        <td className="py-2 text-center font-semibold text-gray-800">{r.perCarton > 0 ? `${r.perCarton} 件` : '—'}</td>
-                        <td className="py-2 text-center font-semibold text-[#5b5bd6]">{r.cartons > 0 ? `${r.cartons} 箱` : '—'}</td>
-                        <td className="py-2 text-right text-gray-600">{r.totalWt > 0 ? `${r.totalWt.toFixed(2)} kg` : '—'}</td>
+              <>
+                <div className="bg-[#5b5bd6]/5 border border-[#5b5bd6]/20 rounded-xl p-5">
+                  <h3 className="text-sm font-bold text-[#5b5bd6] mb-3">各产品最优装箱方案</h3>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs text-gray-500 border-b border-[#5b5bd6]/15">
+                        <th className="text-left pb-2 font-medium">产品</th>
+                        <th className="text-center pb-2 font-medium">最优方向</th>
+                        <th className="text-center pb-2 font-medium">每箱件数</th>
+                        <th className="text-center pb-2 font-medium">需要箱数</th>
+                        <th className="text-right pb-2 font-medium">总毛重</th>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-[#5b5bd6]/20">
-                      <td colSpan={3} className="pt-2 text-sm font-semibold text-gray-700">汇总</td>
-                      <td className="pt-2 text-center font-bold text-[#5b5bd6]">{sepTotal} 箱</td>
-                      <td className="pt-2 text-right font-bold text-gray-800">{sepTotalWt.toFixed(2)} kg</td>
-                    </tr>
-                    <tr><td colSpan={5} className="pt-1 text-xs text-gray-400">外箱体积重 {multiCartonVolWt.toFixed(2)} kg（{multiCL}×{multiCW}×{multiCH} cm ÷{multiActiveDiv}）</td></tr>
-                  </tfoot>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-[#5b5bd6]/10">
+                      {sepResults.map(r => (
+                        <tr key={r.name}>
+                          <td className="py-2 text-gray-700 font-medium">{r.name}</td>
+                          <td className="py-2 text-center">{r.perCarton > 0 ? <span className="font-mono text-xs text-gray-600">{r.label} cm</span> : <span className="text-red-500 text-xs">装不下</span>}</td>
+                          <td className="py-2 text-center font-semibold text-gray-800">{r.perCarton > 0 ? `${r.perCarton} 件` : '—'}</td>
+                          <td className="py-2 text-center font-semibold text-[#5b5bd6]">{r.cartons > 0 ? `${r.cartons} 箱` : '—'}</td>
+                          <td className="py-2 text-right text-gray-600">{r.totalWt > 0 ? `${r.totalWt.toFixed(2)} kg` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-[#5b5bd6]/20">
+                        <td colSpan={3} className="pt-2 text-sm font-semibold text-gray-700">汇总</td>
+                        <td className="pt-2 text-center font-bold text-[#5b5bd6]">{sepTotal} 箱</td>
+                        <td className="pt-2 text-right font-bold text-gray-800">{sepTotalWt.toFixed(2)} kg</td>
+                      </tr>
+                      <tr><td colSpan={5} className="pt-1 text-xs text-gray-400">外箱体积重 {multiCartonVolWt.toFixed(2)} kg（{multiCL}×{multiCW}×{multiCH} cm ÷{multiActiveDiv}）</td></tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Per-product packing diagrams */}
+                {sepResults.some(r => r.perCarton > 0) && (
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-4">各产品堆放示意图</h3>
+                    <div className={`grid gap-4 ${sepResults.length === 1 ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
+                      {sepResults.map(r => r.perCarton > 0 && (
+                        <div key={r.name} className="rounded-xl border border-[#5b5bd6]/15 bg-[#5b5bd6]/3 p-3">
+                          <p className="text-xs font-semibold text-[#5b5bd6] mb-2 text-center">{r.name}</p>
+                          <PackingDiagram
+                            cL={multiCL} cW={multiCW} cH={multiCH}
+                            prodA={r.parts[0]} prodB={r.parts[1]} prodC={r.parts[2]}
+                            W={240} H={170}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* ── Mixed results ── */}
             {multiSubMode === 'mixed' && (
-              <div className="space-y-4">
-                <div className="bg-[#5b5bd6]/5 border border-[#5b5bd6]/20 rounded-xl p-5">
-                  <h3 className="text-sm font-bold text-[#5b5bd6] mb-3">混装装箱方案</h3>
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    {([
-                      ['推荐箱数', `${mixedN} 箱`, `（由${mixVolLimited ? '体积' : '重量'}限制，体积需 ${mixByVol} 箱，重量需 ${mixByWt} 箱）`],
-                      ['每箱体积利用率', `${mixVolUtil.toFixed(1)}%`, `（箱容 ${(multiCartonVol/1000).toFixed(1)} L，产品占 ${(mixVolPerCarton/1000).toFixed(1)} L）`],
-                      ['每箱估算毛重', `${mixWtPerCarton.toFixed(2)} kg`, `（含箱皮 ${multiCWt} kg）`],
-                      ['总货物毛重', `${mixTotalWt.toFixed(2)} kg`, ''],
-                    ] as [string, string, string][]).map(([k, v, sub]) => (
-                      <div key={k} className="bg-white rounded-lg p-3 border border-[#5b5bd6]/10">
-                        <p className="text-xs text-gray-500">{k}</p>
-                        <p className="text-base font-bold text-[#5b5bd6] mt-0.5">{v}</p>
-                        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-                      </div>
-                    ))}
-                  </div>
-                  <h4 className="text-xs font-semibold text-gray-600 mb-2">每箱标准组合（{mixedN} 箱内容相同）</h4>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-xs text-gray-400 border-b border-[#5b5bd6]/10">
-                        <th className="text-left pb-1.5 font-medium">产品</th>
-                        <th className="text-center pb-1.5 font-medium">每箱数量</th>
-                        <th className="text-right pb-1.5 font-medium">溢出件数</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#5b5bd6]/8">
-                      {mixedPerCarton.map(r => (
-                        <tr key={r.name}>
-                          <td className="py-2 text-gray-700 font-medium">{r.name}</td>
-                          <td className="py-2 text-center font-semibold text-gray-800">{r.base} 件</td>
-                          <td className="py-2 text-right">
-                            {r.extra > 0
-                              ? <span className="text-orange-500 text-xs">+{r.extra} 件（分散入前 {r.extra} 箱）</span>
-                              : <span className="text-green-500 text-xs">整除 ✓</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {mixHasExtra && (
-                    <p className="mt-3 text-xs text-orange-600 bg-orange-50 rounded-lg p-2.5">
-                      部分产品有余件，前几箱多装 1 件。若需完全相同可调整总数量为 {mixedN} 的整数倍。
-                    </p>
-                  )}
+              <div className="bg-[#5b5bd6]/5 border border-[#5b5bd6]/20 rounded-xl p-5">
+                <h3 className="text-sm font-bold text-[#5b5bd6] mb-3">混装装箱方案</h3>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {([
+                    ['推荐箱数', `${mixedN} 箱`, `由${mixVolLimited ? '体积' : '重量'}限制（体积需 ${mixByVol} 箱，重量需 ${mixByWt} 箱）`],
+                    ['每箱体积利用率', `${mixVolUtil.toFixed(1)}%`, `箱容 ${(multiCartonVol/1000).toFixed(1)} L，产品占 ${(mixVolPerCarton/1000).toFixed(1)} L`],
+                    ['每箱估算毛重', `${mixWtPerCarton.toFixed(2)} kg`, `含箱皮 ${multiCWt} kg`],
+                    ['总货物毛重', `${(mixedN * mixWtPerCarton).toFixed(2)} kg`, ''],
+                  ] as [string, string, string][]).map(([k, v, sub]) => (
+                    <div key={k} className="bg-white rounded-lg p-3 border border-[#5b5bd6]/10">
+                      <p className="text-xs text-gray-500">{k}</p>
+                      <p className="text-base font-bold text-[#5b5bd6] mt-0.5">{v}</p>
+                      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+                    </div>
+                  ))}
                 </div>
+                <h4 className="text-xs font-semibold text-gray-600 mb-2">每箱标准组合</h4>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-400 border-b border-[#5b5bd6]/10">
+                      <th className="text-left pb-1.5 font-medium">产品</th>
+                      <th className="text-center pb-1.5 font-medium">每箱数量</th>
+                      <th className="text-right pb-1.5 font-medium">溢出件数</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#5b5bd6]/8">
+                    {mixedPerCarton.map(r => (
+                      <tr key={r.name}>
+                        <td className="py-2 text-gray-700 font-medium">{r.name}</td>
+                        <td className="py-2 text-center font-semibold text-gray-800">{r.base} 件</td>
+                        <td className="py-2 text-right">
+                          {r.extra > 0 ? <span className="text-orange-500 text-xs">+{r.extra} 件（分散入前 {r.extra} 箱）</span> : <span className="text-green-500 text-xs">整除 ✓</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {mixHasExtra && (
+                  <p className="mt-3 text-xs text-orange-600 bg-orange-50 rounded-lg p-2.5">
+                    部分产品有余件，前几箱多装 1 件。若需完全相同可调整总数量为 {mixedN} 的整数倍。
+                  </p>
+                )}
               </div>
             )}
 
@@ -456,13 +602,10 @@ export default function CartonCalcPage() {
                       ? <span className="flex items-center gap-1 text-xs text-green-600"><CheckCircle className="h-3.5 w-3.5"/>体积可装入</span>
                       : <span className="flex items-center gap-1 text-xs text-red-500"><AlertTriangle className="h-3.5 w-3.5"/>体积超出外箱</span>}
                   </div>
-
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                     {([
-                      ['箱数', `${splitN} 箱`],
-                      ['每箱体积利用率', `${splitVolUtil.toFixed(1)}%`],
-                      ['每箱毛重', `${splitWtPerCarton.toFixed(2)} kg`],
-                      ['总毛重', `${splitTotalWt.toFixed(2)} kg`],
+                      ['箱数', `${splitN} 箱`], ['每箱体积利用率', `${splitVolUtil.toFixed(1)}%`],
+                      ['每箱毛重', `${splitWtPerCarton.toFixed(2)} kg`], ['总毛重', `${(splitN * splitWtPerCarton).toFixed(2)} kg`],
                     ] as [string, string][]).map(([k, v]) => (
                       <div key={k} className="bg-white rounded-lg p-3 border border-white/60">
                         <p className="text-xs text-gray-500">{k}</p>
@@ -470,15 +613,13 @@ export default function CartonCalcPage() {
                       </div>
                     ))}
                   </div>
-
-                  <h4 className="text-xs font-semibold text-gray-600 mb-2">每箱 SKU 组成</h4>
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-xs text-gray-400 border-b border-[#5b5bd6]/10">
                         <th className="text-left pb-1.5 font-medium">产品 SKU</th>
                         <th className="text-center pb-1.5 font-medium">每箱数量</th>
                         <th className="text-center pb-1.5 font-medium">总数量</th>
-                        <th className="text-right pb-1.5 font-medium">余件（无法等分）</th>
+                        <th className="text-right pb-1.5 font-medium">余件</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#5b5bd6]/8">
@@ -488,34 +629,23 @@ export default function CartonCalcPage() {
                           <td className="py-2 text-center font-bold text-gray-800">{r.base} 件</td>
                           <td className="py-2 text-center text-gray-500">{r.base * splitN} 件</td>
                           <td className="py-2 text-right">
-                            {r.extra > 0
-                              ? <span className="text-orange-500 text-xs">{r.extra} 件无法等分</span>
-                              : <span className="text-green-500 text-xs">完全整除 ✓</span>}
+                            {r.extra > 0 ? <span className="text-orange-500 text-xs">{r.extra} 件无法等分</span> : <span className="text-green-500 text-xs">完全整除 ✓</span>}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-
                   {!splitFits && (
                     <div className="mt-3 text-xs text-red-600 bg-red-100 rounded-lg p-3">
-                      当前每箱产品体积（{(splitVolPerCarton/1000).toFixed(1)} L）超出外箱容积（{(multiCartonVol/1000).toFixed(1)} L），建议增加箱数或使用更大外箱。
+                      每箱产品体积（{(splitVolPerCarton/1000).toFixed(1)} L）超出外箱容积（{(multiCartonVol/1000).toFixed(1)} L），建议增加箱数或使用更大外箱。
                     </div>
                   )}
                 </div>
-
                 {splitHasRemainder && (
                   <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
                     <p className="text-xs font-semibold text-orange-700 mb-2">余件处理建议（调整总数量使能完全整除）</p>
                     <table className="w-full text-xs text-orange-700">
-                      <thead>
-                        <tr className="border-b border-orange-100">
-                          <th className="text-left pb-1 font-medium">产品</th>
-                          <th className="text-center pb-1 font-medium">当前数量</th>
-                          <th className="text-center pb-1 font-medium">余件</th>
-                          <th className="text-right pb-1 font-medium">建议调整为</th>
-                        </tr>
-                      </thead>
+                      <thead><tr className="border-b border-orange-100"><th className="text-left pb-1 font-medium">产品</th><th className="text-center pb-1 font-medium">当前数量</th><th className="text-center pb-1 font-medium">余件</th><th className="text-right pb-1 font-medium">建议调整为</th></tr></thead>
                       <tbody>
                         {splitAdjusted.map(r => r && (
                           <tr key={r.name} className="border-b border-orange-50">
@@ -529,14 +659,12 @@ export default function CartonCalcPage() {
                     </table>
                   </div>
                 )}
-
                 {splitUnder5 && (
                   <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-xs text-orange-700">
                     <p className="font-semibold mb-1">未达亚马逊分仓免配置费要求</p>
                     <p>亚马逊要求至少 <strong>5 箱</strong> 才可免除分仓配置费。当前设定 {splitN} 箱，建议目标箱数设为 5 或更多。</p>
                   </div>
                 )}
-
                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-gray-500 space-y-1">
                   <p className="font-medium text-gray-600">亚马逊分仓免配置费规则说明</p>
                   <ul className="list-disc list-inside space-y-0.5 ml-1">
