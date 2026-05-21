@@ -7,13 +7,13 @@ type Mode = 'smart' | 'known' | 'multi'
 type MultiSubMode = 'separate' | 'mixed' | 'split'
 const VOL_DIVS: number[] = [5000, 6000, 8000]
 
-// Color palette: [light fill, medium fill, dark stroke]
+// Color palette per product (front=lightest, top=medium-light, side=medium-dark, stroke=dark border, text=label)
 const PROD_PALETTE = [
-  { f: '#c4b5fd', m: '#a78bfa', d: '#7c3aed' },
-  { f: '#6ee7b7', m: '#34d399', d: '#059669' },
-  { f: '#fca5a5', m: '#f87171', d: '#dc2626' },
-  { f: '#93c5fd', m: '#60a5fa', d: '#2563eb' },
-  { f: '#fde68a', m: '#fbbf24', d: '#d97706' },
+  { f: '#ede9fe', top: '#c4b5fd', side: '#a78bfa', d: '#7c3aed', text: '#5b21b6' },
+  { f: '#dcfce7', top: '#86efac', side: '#4ade80', d: '#16a34a', text: '#14532d' },
+  { f: '#fee2e2', top: '#fca5a5', side: '#f87171', d: '#dc2626', text: '#7f1d1d' },
+  { f: '#dbeafe', top: '#93c5fd', side: '#60a5fa', d: '#2563eb', text: '#1e3a8a' },
+  { f: '#fef9c3', top: '#fde68a', side: '#fbbf24', d: '#d97706', text: '#78350f' },
 ]
 
 function getOrientations(pL: number, pW: number, pH: number, cL: number, cW: number, cH: number) {
@@ -153,8 +153,8 @@ function PackingDiagram({ cL, cW, cH, prodA, prodB, prodC, W = 280, H = 200 }: {
   )
 }
 
-// ─── Multi-product isometric diagram ───
-function MultiPackingDiagram({ cL, cW, cH, packed, legend, W = 320, H = 230 }: {
+// ─── Multi-product isometric + layer breakdown ───
+function MultiPackingDiagram({ cL, cW, cH, packed, legend, W = 500, H = 310 }: {
   cL: number; cW: number; cH: number
   packed: PackedItem[]
   legend: Array<{ name: string; ci: number; qty: number }>
@@ -163,13 +163,13 @@ function MultiPackingDiagram({ cL, cW, cH, packed, legend, W = 320, H = 230 }: {
   if (!cL || !cW || !cH || packed.length === 0) return null
 
   const C30 = 0.8660254, S30 = 0.5
-  const PAD = Math.round(Math.min(W, H) * 0.14)
+  const PAD = Math.round(Math.min(W, H) * 0.12)
   const S = Math.min(
     (W - PAD * 2) / ((cL + cW) * C30),
-    (H - PAD * 2.2) / ((cL + cW) * S30 + cH),
+    (H - PAD * 2.6) / ((cL + cW) * S30 + cH),
   )
   const ox = W / 2 + (cW - cL) * C30 * S / 2
-  const oy = H - PAD * 0.9
+  const oy = H - PAD * 0.85
 
   const iso = (r: number, h: number, d: number): [number, number] => [
     ox + (r - d) * C30 * S,
@@ -177,7 +177,9 @@ function MultiPackingDiagram({ cL, cW, cH, packed, legend, W = 320, H = 230 }: {
   ]
   const P = (pts: [number, number][]) => pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
 
-  // Painter's order: back rows (large z) first, then left (small x), then lower (small y)
+  // Each item is drawn at 90% of its slot – creates a visible gap between adjacent items
+  const SHR = 0.10
+
   const sorted = [...packed].sort((a, b) =>
     b.z !== a.z ? b.z - a.z : a.x !== b.x ? a.x - b.x : a.y - b.y
   )
@@ -185,69 +187,128 @@ function MultiPackingDiagram({ cL, cW, cH, packed, legend, W = 320, H = 230 }: {
   const FF = [iso(0,0,0), iso(cL,0,0), iso(cL,cH,0), iso(0,cH,0)]
   const RF = [iso(cL,0,0), iso(cL,0,cW), iso(cL,cH,cW), iso(cL,cH,0)]
   const TF = [iso(0,cH,0), iso(cL,cH,0), iso(cL,cH,cW), iso(0,cH,cW)]
-
   const backEdges: [[number,number],[number,number]][] = [
-    [iso(0,0,0), iso(0,0,cW)],
-    [iso(0,0,cW), iso(cL,0,cW)],
-    [iso(0,0,cW), iso(0,cH,cW)],
+    [iso(0,0,0), iso(0,0,cW)], [iso(0,0,cW), iso(cL,0,cW)], [iso(0,0,cW), iso(0,cH,cW)],
   ]
-
   const [lLx, lLy] = iso(cL / 2, 0, 0)
   const lHy = oy - cH / 2 * S
   const [lWx, lWy] = iso(cL, 0, cW / 2)
 
+  // Layer breakdown: group packed items by starting y-level (bottom to top)
+  const yLevels = Array.from(new Set(packed.map(i => i.y))).sort((a, b) => a - b)
+  const lScale = Math.min(3.5, 130 / cL, 90 / cW)
+
   return (
-    <div className="flex flex-col items-center select-none">
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="max-w-full overflow-visible">
-        {/* Hidden back edges */}
-        {backEdges.map(([a, b], i) => (
-          <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#9ca3af" strokeWidth="0.8" strokeDasharray="3,2"/>
-        ))}
+    <div className="space-y-5 select-none">
+      {/* ── Isometric view ── */}
+      <div className="flex flex-col items-center">
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="max-w-full overflow-visible">
+          {backEdges.map(([a, b], i) => (
+            <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#9ca3af" strokeWidth="0.8" strokeDasharray="3,2"/>
+          ))}
+          <polygon points={P(FF)} fill="#f5f4ff" stroke="none"/>
+          <polygon points={P(RF)} fill="#eeecff" stroke="none"/>
+          <polygon points={P(TF)} fill="#f8f7ff" stroke="none"/>
 
-        {/* Carton face backgrounds (empty space) */}
-        <polygon points={P(FF)} fill="#f5f4ff" stroke="none"/>
-        <polygon points={P(RF)} fill="#eeecff" stroke="none"/>
-        <polygon points={P(TF)} fill="#f8f7ff" stroke="none"/>
+          {sorted.map((item, idx) => {
+            const c = PROD_PALETTE[item.ci % PROD_PALETTE.length]
+            const { x, y, z, w, h, d } = item
+            // Shrink item within its slot for visual separation
+            const gx = x + w * SHR / 2, gy = y + h * SHR / 2, gz = z + d * SHR / 2
+            const gw = w * (1 - SHR), gh = h * (1 - SHR), gd = d * (1 - SHR)
+            const fF = [iso(gx,gy,gz), iso(gx+gw,gy,gz), iso(gx+gw,gy+gh,gz), iso(gx,gy+gh,gz)]
+            const rF = [iso(gx+gw,gy,gz), iso(gx+gw,gy,gz+gd), iso(gx+gw,gy+gh,gz+gd), iso(gx+gw,gy+gh,gz)]
+            const tF = [iso(gx,gy+gh,gz), iso(gx+gw,gy+gh,gz), iso(gx+gw,gy+gh,gz+gd), iso(gx,gy+gh,gz+gd)]
+            // Label on front face if large enough
+            const [fcx, fcy] = iso(gx + gw / 2, gy + gh / 2, gz)
+            const facePx = Math.abs(iso(gx + gw, gy, gz)[0] - iso(gx, gy, gz)[0])
+            const faceHpx = gh * S
+            const showLabel = facePx > 26 && faceHpx > 18
+            const fs = Math.min(11, Math.max(7, Math.floor(Math.min(facePx * 0.3, faceHpx * 0.5))))
+            return (
+              <g key={idx}>
+                <polygon points={P(fF)} fill={c.f} stroke={c.d} strokeWidth="0.8"/>
+                <polygon points={P(rF)} fill={c.side} stroke={c.d} strokeWidth="0.8"/>
+                <polygon points={P(tF)} fill={c.top} stroke={c.d} strokeWidth="0.8"/>
+                {showLabel && (
+                  <text x={fcx} y={fcy + fs * 0.38} textAnchor="middle" fontSize={fs} fontWeight="700"
+                    fill={c.text} style={{ pointerEvents: 'none' }}>
+                    {item.name.length <= 4 ? item.name : item.name.slice(0, 3)}
+                  </text>
+                )}
+              </g>
+            )
+          })}
 
-        {/* Products in painter's order */}
-        {sorted.map((item, idx) => {
-          const c = PROD_PALETTE[item.ci % PROD_PALETTE.length]
-          const { x, y, z, w, h, d } = item
-          const fF = [iso(x,y,z), iso(x+w,y,z), iso(x+w,y+h,z), iso(x,y+h,z)]
-          const rF = [iso(x+w,y,z), iso(x+w,y,z+d), iso(x+w,y+h,z+d), iso(x+w,y+h,z)]
-          const tF = [iso(x,y+h,z), iso(x+w,y+h,z), iso(x+w,y+h,z+d), iso(x,y+h,z+d)]
-          return (
-            <g key={idx}>
-              <polygon points={P(fF)} fill={c.f} stroke={c.d} strokeWidth="0.6"/>
-              <polygon points={P(rF)} fill={c.m} stroke={c.d} strokeWidth="0.6"/>
-              <polygon points={P(tF)} fill={c.f} stroke={c.d} strokeWidth="0.6" opacity="0.9"/>
-            </g>
-          )
-        })}
+          <polygon points={P(FF)} fill="none" stroke="#5b5bd6" strokeWidth="1.6"/>
+          <polygon points={P(RF)} fill="none" stroke="#5b5bd6" strokeWidth="1.6"/>
+          <polygon points={P(TF)} fill="none" stroke="#5b5bd6" strokeWidth="1.6"/>
+          <text x={lLx} y={lLy + 14} textAnchor="middle" fontSize="9" fill="#6b7280">长 {cL}cm</text>
+          <text x={ox - 11} y={lHy + 3} textAnchor="end" fontSize="9" fill="#6b7280">高 {cH}cm</text>
+          <text x={lWx + 7} y={lWy + 11} textAnchor="start" fontSize="9" fill="#6b7280">宽 {cW}cm</text>
+        </svg>
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs mt-1.5 px-2">
+          {legend.map(l => {
+            const c = PROD_PALETTE[l.ci % PROD_PALETTE.length]
+            return (
+              <span key={l.name} className="flex items-center gap-1.5">
+                <span className="inline-block w-3.5 h-3.5 rounded-sm border" style={{ background: c.f, borderColor: c.d }}/>
+                <span className="text-gray-700 font-semibold">{l.name}</span>
+                <span className="text-gray-400">× {l.qty} 件</span>
+              </span>
+            )
+          })}
+        </div>
+      </div>
 
-        {/* Carton outline on top */}
-        <polygon points={P(FF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
-        <polygon points={P(RF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
-        <polygon points={P(TF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
-
-        {/* Dimension labels */}
-        <text x={lLx} y={lLy + 13} textAnchor="middle" fontSize="9" fill="#6b7280">长 {cL}cm</text>
-        <text x={ox - 10} y={lHy + 3} textAnchor="end" fontSize="9" fill="#6b7280">高 {cH}cm</text>
-        <text x={lWx + 7} y={lWy + 10} textAnchor="start" fontSize="9" fill="#6b7280">宽 {cW}cm</text>
-      </svg>
-
-      {/* Legend */}
-      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs mt-2 px-2">
-        {legend.map(l => {
-          const c = PROD_PALETTE[l.ci % PROD_PALETTE.length]
-          return (
-            <span key={l.name} className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-sm border" style={{ background: c.f, borderColor: c.d }}/>
-              <span className="text-gray-600 font-medium">{l.name}</span>
-              <span className="text-gray-400">× {l.qty} 件</span>
-            </span>
-          )
-        })}
+      {/* ── Layer-by-layer top-view breakdown ── */}
+      <div className="border-t border-gray-100 pt-4">
+        <p className="text-xs font-semibold text-gray-600 mb-0.5">逐层俯视图（由下至上，每格为一件产品）</p>
+        <p className="text-xs text-gray-400 mb-3">← 箱子长方向 →　　↕ 箱子宽方向（上=开口前侧）</p>
+        <div className="flex gap-4 flex-wrap">
+          {yLevels.map((yLevel, li) => {
+            const layerItems = packed.filter(i => i.y === yLevel)
+            const layerTop = Math.max(...layerItems.map(i => i.y + i.h))
+            const svgW = Math.round(cL * lScale) + 16
+            const svgH = Math.round(cW * lScale) + 16
+            return (
+              <div key={yLevel} className="shrink-0 text-center">
+                <p className="text-xs font-medium text-gray-600 mb-1">
+                  第 {li + 1} 层
+                  <span className="text-gray-400 font-normal ml-1">({yLevel}–{layerTop}cm 高)</span>
+                </p>
+                <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}
+                  className="rounded-lg border border-gray-200 bg-white shadow-sm">
+                  {/* Box outline */}
+                  <rect x="8" y="8" width={cL * lScale} height={cW * lScale}
+                    fill="#f8f9fa" stroke="#d1d5db" strokeWidth="1" rx="2"/>
+                  {/* Items */}
+                  {layerItems.map((item, ii) => {
+                    const c = PROD_PALETTE[item.ci % PROD_PALETTE.length]
+                    const rx = 8 + item.x * lScale
+                    const ry = 8 + item.z * lScale
+                    const rw = Math.max(3, item.w * lScale - 1.5)
+                    const rd = Math.max(3, item.d * lScale - 1.5)
+                    return (
+                      <g key={ii}>
+                        <rect x={rx} y={ry} width={rw} height={rd}
+                          fill={c.f} stroke={c.d} strokeWidth="1" rx="2"/>
+                        {rw > 20 && rd > 14 && (
+                          <text x={rx + rw / 2} y={ry + rd / 2 + 3.5}
+                            textAnchor="middle" fontSize="8" fontWeight="700" fill={c.text}
+                            style={{ pointerEvents: 'none' }}>
+                            {item.name.length <= 4 ? item.name : item.name.slice(0, 3)}
+                          </text>
+                        )}
+                      </g>
+                    )
+                  })}
+                </svg>
+                <p className="text-xs text-gray-400 mt-1">{layerItems.length} 件</p>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
