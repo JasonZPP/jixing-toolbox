@@ -45,7 +45,7 @@ export default function Navbar() {
             <div className="absolute top-full right-0 mt-2 bg-white shadow-2xl rounded-xl border border-black/8 py-2 z-50 w-56 max-h-[70vh] overflow-y-auto">
               {CATEGORY_ORDER.map(cat => (
                 <div key={cat}>
-                  <div className="px-4 pt-3 pb-1 text-[9px] font-black text-[#5b5bd6] tracking-[0.2em] uppercase">
+                  <div className="px-4 pt-3 pb-1 text-[11px] font-black text-[#5b5bd6] tracking-[0.2em] uppercase">
                     {categoryLabels[cat]}
                   </div>
                   {toolsByCategory[cat].map(tool => (
@@ -53,7 +53,7 @@ export default function Navbar() {
                       key={tool.slug}
                       href={`/functionality/${tool.slug}`}
                       onClick={() => setOpen(false)}
-                      className="block px-4 py-1.5 text-[11px] text-gray-600 hover:bg-[#5b5bd6]/5 hover:text-[#5b5bd6] transition-colors"
+                      className="block px-4 py-1.5 text-[13px] text-gray-600 hover:bg-[#5b5bd6]/5 hover:text-[#5b5bd6] transition-colors"
                     >
                       {tool.name}
                     </Link>

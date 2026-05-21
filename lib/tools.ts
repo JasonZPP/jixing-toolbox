@@ -38,8 +38,7 @@ export const tools: Tool[] = [
   { slug: 'image-info-viewer', name: '批量图片信息查看器', description: '读取图片EXIF数据，展示尺寸、大小、格式、拍摄参数', category: 'image', icon: 'Info', color: 'blue' },
   // 其他工具 (6)
   { slug: 'carton-calc-advanced', name: '外箱装箱计算器', description: '输入产品与外箱尺寸，计算装箱数量、总重量与体积重', category: 'other', icon: 'Package', color: 'orange' },
-  { slug: 'partner-equity-calculator', name: '合伙人权益计算器', description: '多人股权与利润分配计算，支持自定义出资比例与分配规则', category: 'other', icon: 'Users', color: 'orange' },
-  { slug: 'sales-calc', name: '亚马逊销售额计算', description: '多SKU价格×销量批量汇总，快速统计总销售额', category: 'other', icon: 'DollarSign', color: 'orange' },
+{ slug: 'sales-calc', name: '亚马逊销售额计算', description: '多SKU价格×销量批量汇总，快速统计总销售额', category: 'other', icon: 'DollarSign', color: 'orange' },
   { slug: 'image-to-pdf-batch', name: '批量图片转PDF', description: '多张图片合并为单个PDF，支持排序与页面设置', category: 'other', icon: 'FileImage', color: 'orange' },
   { slug: 'pdf-image-watermark-redaction', name: 'PDF / 图片 水印与打码工具', description: '添加文字水印或对敏感区域马赛克打码，保护商业文件', category: 'other', icon: 'Stamp', color: 'orange' },
   { slug: 'image-batch-renamer', name: '图片批量重命名工具', description: '按规则批量重命名图片文件，支持前缀/序号/日期，打包下载', category: 'other', icon: 'FilePen', color: 'orange' },
