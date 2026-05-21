@@ -16,13 +16,9 @@ export const tools: Tool[] = [
   { slug: 'listing-check', name: 'Listing自检工具', description: '检查标题字数、要点格式、关键词密度等规则，提升Listing质量分', category: 'ops', icon: 'ClipboardCheck', color: 'orange' },
   { slug: 'fba-warehouses', name: 'FBA仓库查询', description: '全美FBA仓库地址一览，按州筛选，快速确认发货目的地', category: 'ops', icon: 'MapPin', color: 'orange' },
   { slug: 'amazon-global', name: '亚马逊批量查询', description: '批量验证ASIN格式并生成各站点商品链接，多站点运营必备', category: 'ops', icon: 'Search', color: 'orange' },
-  // 图文工具 (6)
-  { slug: 'word-count', name: '词频统计', description: '快速统计文本词频，输出排名表，适用于关键词密度分析', category: 'image', icon: 'BarChart2', color: 'blue' },
+  // 图文工具 (2)
   { slug: 'image-compression', name: '图片压缩与格式转换', description: '无损/有损压缩，支持JPG/PNG/WebP互转，批量处理', category: 'image', icon: 'ImageDown', color: 'blue' },
   { slug: 'image-resizer', name: '图片尺寸修改工具', description: '批量修改图片尺寸，支持等比缩放与自定义尺寸', category: 'image', icon: 'Scaling', color: 'blue' },
-  { slug: 'editor', name: '可视化编辑器', description: '富文本在线编辑，支持格式化、颜色、对齐，一键复制结果', category: 'image', icon: 'PenLine', color: 'blue' },
-  { slug: 'case', name: '大小写转换', description: '全大写、全小写、首字母大写、句首大写一键转换', category: 'image', icon: 'CaseSensitive', color: 'blue' },
-  { slug: 'char-count', name: '字符统计', description: '实时统计字节数、字符数、行数、单词数，多语言支持', category: 'image', icon: 'Hash', color: 'blue' },
   // 其他工具 (5)
   { slug: 'carton-calc-advanced', name: '外箱装箱计算器', description: '输入产品与外箱尺寸，计算装箱数量、总重量与体积重', category: 'other', icon: 'Package', color: 'orange' },
   { slug: 'sales-calc', name: '亚马逊销售额计算', description: '多SKU价格×销量批量汇总，快速统计总销售额', category: 'other', icon: 'DollarSign', color: 'orange' },

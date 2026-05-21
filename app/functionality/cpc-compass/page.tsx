@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
+import { calcFbaUs, getSizeStandard } from '@/lib/calc/fba-us'
 
 interface Category { name: string; rate: number }
 const CATEGORIES: Category[] = [
@@ -23,32 +24,56 @@ const CATEGORIES: Category[] = [
   { name: '其他', rate: 0.15 },
 ]
 
-interface Strategy { name: string; factor: number; emoji: string }
+interface Strategy { name: string; factor: number; emoji: string; note: string }
 const STRATEGIES: Strategy[] = [
-  { name: '新品冲榜', factor: 1.0, emoji: '🚀' },
-  { name: '稳健增长', factor: 0.7, emoji: '📈' },
-  { name: '利润收割', factor: 0.4, emoji: '💰' },
-  { name: '清仓回款', factor: 1.2, emoji: '💸' },
+  { name: '新品冲榜', factor: 1.0, emoji: '🚀', note: '允许阶段性亏损抢排名' },
+  { name: '稳健增长', factor: 0.7, emoji: '📈', note: '兼顾排名与利润' },
+  { name: '利润收割', factor: 0.4, emoji: '💰', note: '保利润为先' },
+  { name: '清仓回款', factor: 1.2, emoji: '💸', note: '加速回款可接受亏损' },
 ]
+
+const SIZE_LABEL: Record<string, string> = {
+  'Small Standard': '小号标准尺寸',
+  'Large Standard': '大号标准尺寸',
+  'Large Bulky': '大号大件',
+  'Extra Large': '超大件',
+}
+
+type FbaMode = 'auto' | 'manual'
 
 export default function CpcCompassPage() {
   const [cost, setCost] = useState(8)
   const [shipping, setShipping] = useState(1.5)
   const [categoryIdx, setCategoryIdx] = useState(0)
   const [price, setPrice] = useState(29.99)
-  const [fbaFee, setFbaFee] = useState(5.5)
   const [returnRate, setReturnRate] = useState(5)
   const [returnFee, setReturnFee] = useState(3)
   const [rate, setRate] = useState(7.25)
   const [cvr, setCvr] = useState(10)
   const [targetAcos, setTargetAcos] = useState(20)
 
+  // FBA fee
+  const [fbaMode, setFbaMode] = useState<FbaMode>('auto')
+  const [manualFba, setManualFba] = useState(5.5)
+  const [length, setLength] = useState(20)
+  const [width, setWidth] = useState(15)
+  const [height, setHeight] = useState(5)
+  const [weightG, setWeightG] = useState(300)
+  const [isPeak, setIsPeak] = useState(false)
+
+  const weightOz = weightG / 28.35
+  const lengthIn = length / 2.54
+  const widthIn = width / 2.54
+  const heightIn = height / 2.54
+  const sizeTier = getSizeStandard({ weightOz, lengthIn, widthIn, heightIn })
+  const autoFba = calcFbaUs({ weightOz, lengthIn, widthIn, heightIn, year: 2026, isPeak })
+  const fbaFee = fbaMode === 'auto' ? autoFba : manualFba
+
   const commRate = CATEGORIES[categoryIdx].rate
   const commission = price * commRate
   const rr = returnRate / 100
   const cvrFrac = cvr / 100
 
-  // 有效毛利 = 售价×(1-退货率) - 采购 - 头程 - FBA - 佣金 - (退货率×退货杂费)
   const purchaseUSD = cost / rate
   const shippingUSD = shipping / rate
   const grossMargin = price * (1 - rr) - purchaseUSD - shippingUSD - fbaFee - commission - rr * returnFee
@@ -61,17 +86,16 @@ export default function CpcCompassPage() {
   const adCostPerSale = (targetAcos / 100) * price
   const netProfit = grossMargin - adCostPerSale
   const netMarginRate = price > 0 ? netProfit / price : 0
+  const minCvr = price > 0 && recommendedCpc > 0 ? (recommendedCpc / ((targetAcos / 100) * price)) * 100 : 0
 
-  const applyStrategy = (s: Strategy) => {
-    setTargetAcos(Math.max(0, marginRate * 100 * s.factor))
-  }
+  const applyStrategy = (s: Strategy) => setTargetAcos(Math.max(0, marginRate * 100 * s.factor))
 
   const ic = 'w-32 text-right border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40'
+  const icSm = 'w-20 text-right border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40'
 
   return (
     <ToolLayout title="CPC利润测算" description="综合采购、头程、FBA、佣金、退货损失，反推目标CPC与盈亏平衡点">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Config */}
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
             <h3 className="text-sm font-semibold text-gray-700">产品基础档案</h3>
@@ -86,9 +110,44 @@ export default function CpcCompassPage() {
               </select>
             </div>
             <div className="flex items-center justify-between"><label className="text-sm text-gray-600">售价 ($)</label><input type="number" min="0" step="0.5" value={price} onChange={e => setPrice(parseFloat(e.target.value) || 0)} className={ic}/></div>
-            <div className="flex items-center justify-between"><label className="text-sm text-gray-600">FBA配送费 ($)</label><input type="number" min="0" step="0.1" value={fbaFee} onChange={e => setFbaFee(parseFloat(e.target.value) || 0)} className={ic}/></div>
             <div className="flex items-center justify-between"><label className="text-sm text-gray-600">退货率 (%)</label><input type="number" min="0" step="0.5" value={returnRate} onChange={e => setReturnRate(parseFloat(e.target.value) || 0)} className={ic}/></div>
             <div className="flex items-center justify-between"><label className="text-sm text-gray-600">每单退货杂费 ($)</label><input type="number" min="0" step="0.5" value={returnFee} onChange={e => setReturnFee(parseFloat(e.target.value) || 0)} className={ic}/></div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-700">FBA 配送费</h3>
+              <div className="flex gap-1">
+                {([['auto', '按尺寸自动测算'], ['manual', '手动输入']] as [FbaMode, string][]).map(([m, l]) => (
+                  <button key={m} onClick={() => setFbaMode(m)}
+                    className={`px-2.5 py-1 rounded text-xs font-medium ${fbaMode === m ? 'bg-[#5b5bd6] text-white' : 'bg-slate-100 text-gray-600 hover:bg-slate-200'}`}>{l}</button>
+                ))}
+              </div>
+            </div>
+            {fbaMode === 'auto' ? (
+              <>
+                <div className="grid grid-cols-4 gap-2">
+                  {([['长cm', length, setLength], ['宽cm', width, setWidth], ['高cm', height, setHeight], ['重量g', weightG, setWeightG]] as [string, number, React.Dispatch<React.SetStateAction<number>>][]).map(([l, v, s]) => (
+                    <div key={l}>
+                      <label className="text-xs text-gray-500 block mb-1">{l}</label>
+                      <input type="number" min="0" step="1" value={v} onChange={e => s(parseFloat(e.target.value) || 0)} className={icSm + ' w-full'}/>
+                    </div>
+                  ))}
+                </div>
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input type="checkbox" checked={isPeak} onChange={e => setIsPeak(e.target.checked)}/> 旺季配送（含旺季附加费）
+                </label>
+                <div className="flex justify-between text-sm bg-slate-50 rounded-lg px-3 py-2">
+                  <span className="text-gray-500">尺寸分段：{SIZE_LABEL[sizeTier] || sizeTier}</span>
+                  <span className="font-semibold text-[#5b5bd6]">FBA ${autoFba.toFixed(2)}</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-600">FBA配送费 ($)</label>
+                <input type="number" min="0" step="0.1" value={manualFba} onChange={e => setManualFba(parseFloat(e.target.value) || 0)} className={ic}/>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
@@ -97,11 +156,12 @@ export default function CpcCompassPage() {
             <div className="flex items-center justify-between"><label className="text-sm text-gray-600">目标 ACOS (%)</label><input type="number" min="0" step="1" value={targetAcos} onChange={e => setTargetAcos(parseFloat(e.target.value) || 0)} className={ic}/></div>
             <div>
               <label className="text-xs text-gray-500 block mb-2">推广阶段策略（自动设定目标 ACOS = 毛利率 × 系数）</label>
-              <div className="flex gap-2 flex-wrap">
+              <div className="grid grid-cols-2 gap-2">
                 {STRATEGIES.map(s => (
                   <button key={s.name} onClick={() => applyStrategy(s)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-gray-600 hover:bg-[#5b5bd6]/10 hover:text-[#5b5bd6] transition-colors">
-                    {s.emoji} {s.name}（{(s.factor * 100).toFixed(0)}%）
+                    className="text-left px-3 py-2 rounded-lg bg-slate-50 hover:bg-[#5b5bd6]/10 transition-colors">
+                    <span className="text-sm font-medium text-gray-700">{s.emoji} {s.name}</span>
+                    <span className="block text-xs text-gray-400">{s.note}（{(s.factor * 100).toFixed(0)}%）</span>
                   </button>
                 ))}
               </div>
@@ -109,7 +169,6 @@ export default function CpcCompassPage() {
           </div>
         </div>
 
-        {/* Results */}
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <h3 className="text-sm font-semibold text-gray-700 mb-3">利润测算</h3>
@@ -136,9 +195,10 @@ export default function CpcCompassPage() {
             <div className="space-y-1.5">
               {([
                 ['盈亏平衡 ACOS', `${(breakevenAcos * 100).toFixed(1)}%`],
-                ['盈亏平衡点击数（每单）', `${breakevenClicks.toFixed(1)} 次`],
+                ['不亏本点击数（每单）', `${breakevenClicks.toFixed(1)} 次`],
                 ['安全 CPC（保本上限）', `$${safeCpc.toFixed(2)}`],
-                [`推荐 CPC（目标ACOS ${targetAcos}%）`, `$${recommendedCpc.toFixed(2)}`],
+                [`建议 CPC（目标ACOS ${targetAcos}%）`, `$${recommendedCpc.toFixed(2)}`],
+                ['最低保本转化率', `${minCvr > 0 && isFinite(minCvr) ? minCvr.toFixed(1) : '0.0'}%`],
                 ['每单广告花费', `$${adCostPerSale.toFixed(2)}`],
               ] as [string, string][]).map(([k, v]) => (
                 <div key={k} className="flex justify-between text-sm border-b border-[#5b5bd6]/10 pb-1.5">

@@ -21,6 +21,7 @@ export default function ListingCheckPage() {
   const [bullets, setBullets] = useState(['', '', '', '', ''])
   const [desc, setDesc] = useState('')
   const [keywords, setKeywords] = useState('')
+  const [stKeywords, setStKeywords] = useState('')
 
   const kwList = useMemo(() =>
     keywords.split(/[,，\n]/).map(k => k.trim().toLowerCase()).filter(Boolean),
@@ -71,8 +72,25 @@ export default function ListingCheckPage() {
       label: '违禁内容检测', status: foundPhrases.length ? 'fail' : 'pass',
       detail: foundPhrases.length ? `含违禁短语：${foundPhrases.join('、')}` : '未发现违禁短语',
     })
+    if (stKeywords) {
+      const stBytes = new TextEncoder().encode(stKeywords).length
+      out.push({
+        label: 'ST关键词字节数', status: stBytes > 250 ? 'fail' : 'pass',
+        detail: stBytes > 250 ? `${stBytes} 字节，超过后台 250 字节上限` : `${stBytes} 字节（上限 250）`,
+      })
+      out.push({
+        label: 'ST关键词分隔', status: /[,，;；]/.test(stKeywords) ? 'warn' : 'pass',
+        detail: /[,，;；]/.test(stKeywords) ? 'ST关键词应仅用空格分隔，不要使用标点符号' : '使用空格分隔，符合规范',
+      })
+      const stWords = stKeywords.toLowerCase().split(/\s+/).filter(Boolean)
+      const stDup = stWords.filter((w, i) => stWords.indexOf(w) !== i)
+      out.push({
+        label: 'ST关键词去重', status: stDup.length ? 'warn' : 'pass',
+        detail: stDup.length ? `有重复词：${Array.from(new Set(stDup)).slice(0, 5).join(' ')}（重复词浪费字节）` : '无重复词',
+      })
+    }
     return out
-  }, [title, bullets, desc])
+  }, [title, bullets, desc, stKeywords])
 
   const kwStats = useMemo(() => {
     const allText = [title, ...bullets, desc].join(' ').toLowerCase()
@@ -120,6 +138,13 @@ export default function ListingCheckPage() {
             <label className="text-sm font-medium text-gray-700 mb-1 block">产品关键词（用逗号分隔或分行填写）</label>
             <textarea value={keywords} onChange={e => setKeywords(e.target.value)} rows={3}
               placeholder="walnut organizer, desk storage, ..." className={ic}/>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">
+              ST 后台搜索关键词（仅用空格分隔，{new TextEncoder().encode(stKeywords).length} / 250 字节）
+            </label>
+            <textarea value={stKeywords} onChange={e => setStKeywords(e.target.value)} rows={2}
+              placeholder="walnut wood desk storage organizer remote control holder" className={ic}/>
           </div>
         </div>
 

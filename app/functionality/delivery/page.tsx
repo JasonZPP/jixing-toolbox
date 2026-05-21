@@ -39,6 +39,8 @@ export default function DeliveryPage() {
   const [adCost, setAdCost] = useState(3)
   const [miscCost, setMiscCost] = useState(0)
   const [rate, setRate] = useState(7.25)
+  const [returnRate, setReturnRate] = useState(5)
+  const [unsellableRate, setUnsellableRate] = useState(50)
 
   const weightOz = wUnit === 'oz' ? weight : weight / 28.35
   const lengthIn = dimUnit === 'in' ? length : length / 2.54
@@ -58,7 +60,9 @@ export default function DeliveryPage() {
   const costUSD = cost / rate
   const firstLegUSD = firstLeg / rate
   const amazonFee = commission + fbaFee
-  const netProfit = price - amazonFee - costUSD - firstLegUSD - adCost - miscCost
+  // 不可售损失：退货中无法二次销售的部分，损失其采购+头程成本
+  const unsellableLoss = (returnRate / 100) * (unsellableRate / 100) * (costUSD + firstLegUSD)
+  const netProfit = price - amazonFee - costUSD - firstLegUSD - adCost - miscCost - unsellableLoss
   const netMargin = price > 0 ? netProfit / price : 0
 
   const ic = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40'
@@ -112,6 +116,8 @@ export default function DeliveryPage() {
               <div><label className="text-xs text-gray-500">头程运费 (¥/件)</label><input type="number" min="0" step="0.5" value={firstLeg} onChange={e => setFirstLeg(parseFloat(e.target.value) || 0)} className={ic}/></div>
               <div><label className="text-xs text-gray-500">每单广告费 ($)</label><input type="number" min="0" step="0.5" value={adCost} onChange={e => setAdCost(parseFloat(e.target.value) || 0)} className={ic}/></div>
               <div><label className="text-xs text-gray-500">其他杂费 ($)</label><input type="number" min="0" step="0.5" value={miscCost} onChange={e => setMiscCost(parseFloat(e.target.value) || 0)} className={ic}/></div>
+              <div><label className="text-xs text-gray-500">退货率 (%)</label><input type="number" min="0" step="0.5" value={returnRate} onChange={e => setReturnRate(parseFloat(e.target.value) || 0)} className={ic}/></div>
+              <div><label className="text-xs text-gray-500">退货不可售比例 (%)</label><input type="number" min="0" max="100" step="5" value={unsellableRate} onChange={e => setUnsellableRate(parseFloat(e.target.value) || 0)} className={ic}/></div>
             </div>
           </div>
         </div>
@@ -146,6 +152,7 @@ export default function DeliveryPage() {
                 ['头程运费', `-$${firstLegUSD.toFixed(2)}`, 'text-gray-500'],
                 ['广告费', `-$${adCost.toFixed(2)}`, 'text-gray-500'],
                 ['其他杂费', `-$${miscCost.toFixed(2)}`, 'text-gray-500'],
+                [`不可售损失（退货${returnRate}%×不可售${unsellableRate}%）`, `-$${unsellableLoss.toFixed(2)}`, 'text-gray-500'],
               ] as [string, string, string][]).map(([k, v, cls]) => (
                 <div key={k} className="flex justify-between text-sm border-b border-[#5b5bd6]/10 pb-1.5">
                   <span className="text-gray-600">{k}</span>

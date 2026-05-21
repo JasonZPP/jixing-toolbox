@@ -1,8 +1,10 @@
 'use client'
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import ToolLayout from '@/components/ToolLayout'
-import { Upload, Copy } from 'lucide-react'
+import { Upload, Copy, Download } from 'lucide-react'
 import { FORBIDDEN_WORDS } from '@/lib/data/forbidden-words'
+
+const CUSTOM_KEY = 'jixing_forbidden_custom_words'
 
 function escapeRe(s: string) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
 
@@ -19,6 +21,24 @@ export default function ForbiddenWordsPage() {
   const [customInput, setCustomInput] = useState('')
   const [customWords, setCustomWords] = useState<string[]>([])
   const [replacements, setReplacements] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CUSTOM_KEY)
+      if (saved) setCustomWords(JSON.parse(saved))
+    } catch { /* ignore */ }
+  }, [])
+  useEffect(() => {
+    try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(customWords)) } catch { /* ignore */ }
+  }, [customWords])
+
+  const exportTxt = () => {
+    const blob = new Blob(['﻿' + text], { type: 'text/plain;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'checked-text.txt'
+    a.click()
+  }
 
   const allWords = useMemo(() => [...FORBIDDEN_WORDS, ...customWords], [customWords])
 
@@ -144,10 +164,16 @@ export default function ForbiddenWordsPage() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
               <div className="flex justify-between items-center mb-2">
                 <p className="text-xs text-gray-400">文案预览（红色为违禁词）</p>
-                <button onClick={() => navigator.clipboard.writeText(text)}
-                  className="text-xs text-[#5b5bd6] flex items-center gap-1 hover:underline">
-                  <Copy className="h-3.5 w-3.5"/> 复制文本
-                </button>
+                <div className="flex gap-3">
+                  <button onClick={() => navigator.clipboard.writeText(text)}
+                    className="text-xs text-[#5b5bd6] flex items-center gap-1 hover:underline">
+                    <Copy className="h-3.5 w-3.5"/> 复制文本
+                  </button>
+                  <button onClick={exportTxt}
+                    className="text-xs text-[#5b5bd6] flex items-center gap-1 hover:underline">
+                    <Download className="h-3.5 w-3.5"/> 导出TXT
+                  </button>
+                </div>
               </div>
               <p className="text-sm leading-relaxed whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: highlighted }}/>
             </div>

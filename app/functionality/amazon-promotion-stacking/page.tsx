@@ -11,6 +11,7 @@ const ACTIVITIES: Activity[] = [
   { key: 'btp', name: '品牌定制促销', note: '面向指定人群的品牌定制促销' },
   { key: 'social', name: '社交媒体促销代码', note: '通过站外社媒分发的促销代码' },
   { key: 'deal', name: '秒杀 / 主推折扣（Deal）', note: '限时秒杀或七天促销' },
+  { key: 'b2b', name: 'B2B 企业价格', note: '面向企业买家的数量阶梯折扣' },
 ]
 
 type StackMode = 'sequential' | 'best'
