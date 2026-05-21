@@ -22,7 +22,7 @@ export function calcRow(row: AdRow) {
 }
 
 export const MULTIPLIERS: Record<string, Record<string, number>> = {
-  fixed:    { top: 1, product: 1, rest: 1 },
-  updown:   { top: 2, product: 1.5, rest: 1 },
+  fixed:    { top: 1, product: 1,   rest: 1 },
+  updown:   { top: 2, product: 1.5, rest: 1.5 },
   downonly: { top: 1, product: 1,   rest: 1 },
 }

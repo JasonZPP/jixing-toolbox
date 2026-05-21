@@ -3,50 +3,70 @@ import { useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 
 export default function MaxReserveFeePage() {
-  const [cubicFt, setCubicFt] = useState(1.0)
-  const [units, setUnits] = useState(100)
-  const [month, setMonth] = useState(6)
+  const [capacity, setCapacity] = useState(100)
+  const [salesForecast, setSalesForecast] = useState(5000)
+  const [creditRate, setCreditRate] = useState(0.15)
 
-  const isPeak = month >= 10 || month === 1
-  const storageRate = isPeak ? 2.40 : 0.78
-  const reserveFeeRate = isPeak ? 1.50 : 0.50
-  const storageCost = cubicFt * units * storageRate
-  const reserveFee = cubicFt * units * reserveFeeRate
-  const maxFreeUnits = cubicFt > 0 ? Math.floor(storageCost / reserveFeeRate / cubicFt) : 0
+  const valid = capacity > 0 && salesForecast > 0 && creditRate > 0
+  const creditTotal = salesForecast * creditRate
+  const maxReserveFee = creditTotal
+  const perCubicFt = capacity > 0 ? maxReserveFee / capacity : 0
 
   return (
-    <ToolLayout title="最高预留费计算工具" description="计算白嫖库容的最优预留数量">
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 max-w-md space-y-4">
-        {[
-          { label: '单件体积 (立方英尺)', value: cubicFt, setter: setCubicFt, step: 0.01 },
-          { label: '库存数量', value: units, setter: setUnits, step: 1 },
-        ].map(({ label, value, setter, step }) => (
-          <div key={label} className="flex items-center justify-between">
-            <label className="text-sm text-gray-600">{label}</label>
-            <input type="number" min="0" step={step} value={value} onChange={e => setter(parseFloat(e.target.value)||0)}
-              className="w-32 text-right border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+    <ToolLayout title="最高预留费计算工具" description="按销售额预估的绩效积分，计算白嫖FBA库容的最高预留费">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-gray-700">输入参数</h3>
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">计划申请 FBA 库容（立方英尺）</label>
+            <input type="number" min="0" step="1" value={capacity}
+              onChange={e => setCapacity(parseFloat(e.target.value) || 0)}
+              placeholder="填写立方英尺"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40"/>
           </div>
-        ))}
-        <div className="flex items-center justify-between">
-          <label className="text-sm text-gray-600">月份</label>
-          <select value={month} onChange={e => setMonth(parseInt(e.target.value))}
-            className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            {Array.from({length:12},(_,i)=>i+1).map(m=>(
-              <option key={m} value={m}>{m}月{(m>=10||m===1)?'（旺季）':''}</option>
-            ))}
-          </select>
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">申请月份销售额预估（美元）</label>
+            <input type="number" min="0" step="100" value={salesForecast}
+              onChange={e => setSalesForecast(parseFloat(e.target.value) || 0)}
+              placeholder="填写美元金额"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40"/>
+          </div>
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">绩效积分赚取率（每 $1 销售额产生积分）</label>
+            <input type="number" min="0" step="0.01" value={creditRate}
+              onChange={e => setCreditRate(parseFloat(e.target.value) || 0)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40"/>
+            <p className="text-xs text-gray-400 mt-1">默认 0.15：每 $1 销售额产生 $0.15 绩效积分</p>
+          </div>
         </div>
-        <div className="border-t border-gray-100 pt-4 space-y-2">
-          {[
-            { label: '仓储费/月', value: `$${storageCost.toFixed(2)}` },
-            { label: '预留费/月', value: `$${reserveFee.toFixed(2)}` },
-            { label: '最大免费预留件数', value: `${maxFreeUnits} 件`, highlight: true },
-          ].map(row => (
-            <div key={row.label} className={`flex justify-between border-b border-gray-50 pb-2 ${(row as {highlight?:boolean}).highlight ? 'font-bold text-indigo-600' : 'text-gray-600'}`}>
-              <span className="text-sm">{row.label}</span>
-              <span className="text-sm">{row.value}</span>
-            </div>
-          ))}
+
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">分析结果</h3>
+          {valid ? (
+            <>
+              <div className="space-y-1.5">
+                {([
+                  ['绩效积分总额', `$${creditTotal.toFixed(2)}`, false],
+                  ['最高预留费（积分可全额抵扣）', `$${maxReserveFee.toFixed(2)}`, true],
+                  ['每立方英尺最高预留费', `$${perCubicFt.toFixed(4)}`, false],
+                ] as [string, string, boolean][]).map(([k, v, hl]) => (
+                  <div key={k} className={`flex justify-between text-sm border-b border-gray-50 pb-1.5 ${hl ? 'font-bold text-[#5b5bd6]' : 'text-gray-600'}`}>
+                    <span>{k}</span>
+                    <span>{v}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 bg-slate-50 rounded-lg p-3 text-xs text-gray-500 space-y-1">
+                <p className="font-medium text-gray-600">详细计算过程</p>
+                <p>绩效积分总额 = 销售额预估 ${salesForecast} × {creditRate} = ${creditTotal.toFixed(2)}</p>
+                <p>最高预留费 = 绩效积分总额 = ${maxReserveFee.toFixed(2)}</p>
+                <p>每立方英尺最高预留费 = ${maxReserveFee.toFixed(2)} ÷ {capacity} 立方英尺 = ${perCubicFt.toFixed(4)}</p>
+                <p className="text-gray-400 pt-1">当预留费出价不超过此值时，可由绩效积分全额抵扣，相当于免费获取额外库容。</p>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-400 py-8 text-center">请输入有效的正数后查看结果</p>
+          )}
         </div>
       </div>
     </ToolLayout>

@@ -1,71 +1,169 @@
 'use client'
 import { useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
-import { calcProfit, calcBreakevenAcos } from '@/lib/calc/cpc'
 
-const CATEGORIES = ['家居', '厨房', '运动', '玩具', '服装', '其他'] as const
-const COMMISSION: Record<string, number> = {
-  家居: 0.15, 厨房: 0.15, 运动: 0.15, 玩具: 0.15, 服装: 0.17, 其他: 0.15,
-}
+interface Category { name: string; rate: number }
+const CATEGORIES: Category[] = [
+  { name: '家居及厨房用品', rate: 0.15 },
+  { name: '运动户外', rate: 0.15 },
+  { name: '玩具和游戏', rate: 0.15 },
+  { name: '工具和家居装修', rate: 0.15 },
+  { name: '办公用品', rate: 0.15 },
+  { name: '宠物用品', rate: 0.15 },
+  { name: '家具', rate: 0.15 },
+  { name: '草坪和园艺', rate: 0.15 },
+  { name: '服装', rate: 0.17 },
+  { name: '鞋靴', rate: 0.15 },
+  { name: '电子产品配件', rate: 0.15 },
+  { name: '消费类电子产品', rate: 0.08 },
+  { name: '电脑', rate: 0.08 },
+  { name: '珠宝首饰', rate: 0.20 },
+  { name: '钟表', rate: 0.16 },
+  { name: '食品', rate: 0.15 },
+  { name: '其他', rate: 0.15 },
+]
+
+interface Strategy { name: string; factor: number; emoji: string }
+const STRATEGIES: Strategy[] = [
+  { name: '新品冲榜', factor: 1.0, emoji: '🚀' },
+  { name: '稳健增长', factor: 0.7, emoji: '📈' },
+  { name: '利润收割', factor: 0.4, emoji: '💰' },
+  { name: '清仓回款', factor: 1.2, emoji: '💸' },
+]
 
 export default function CpcCompassPage() {
-  const [price, setPrice] = useState(30)
-  const [fbaFee, setFbaFee] = useState(5)
-  const [category, setCategory] = useState('家居')
-  const [cpc, setCpc] = useState(0.8)
-  const [cvr, setCvr] = useState(0.1)
+  const [cost, setCost] = useState(8)
+  const [shipping, setShipping] = useState(1.5)
+  const [categoryIdx, setCategoryIdx] = useState(0)
+  const [price, setPrice] = useState(29.99)
+  const [fbaFee, setFbaFee] = useState(5.5)
+  const [returnRate, setReturnRate] = useState(5)
+  const [returnFee, setReturnFee] = useState(3)
+  const [rate, setRate] = useState(7.25)
+  const [cvr, setCvr] = useState(10)
+  const [targetAcos, setTargetAcos] = useState(20)
 
-  const rate = COMMISSION[category]
-  const result = calcProfit({ price, fbaFee, commissionRate: rate, cpc, cvr })
-  const beAcos = calcBreakevenAcos({ price, fbaFee, commissionRate: rate })
+  const commRate = CATEGORIES[categoryIdx].rate
+  const commission = price * commRate
+  const rr = returnRate / 100
+  const cvrFrac = cvr / 100
 
-  const Row = ({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) => (
-    <div className={`flex justify-between py-3 border-b border-gray-50 ${highlight ? 'font-bold text-indigo-600' : 'text-gray-600'}`}>
-      <span className="text-sm">{label}</span>
-      <span className="text-sm">{value}</span>
-    </div>
-  )
+  // 有效毛利 = 售价×(1-退货率) - 采购 - 头程 - FBA - 佣金 - (退货率×退货杂费)
+  const purchaseUSD = cost / rate
+  const shippingUSD = shipping / rate
+  const grossMargin = price * (1 - rr) - purchaseUSD - shippingUSD - fbaFee - commission - rr * returnFee
+  const marginRate = price > 0 ? grossMargin / price : 0
+
+  const breakevenAcos = price > 0 ? grossMargin / price : 0
+  const breakevenClicks = cvrFrac > 0 ? 1 / cvrFrac : 0
+  const recommendedCpc = (targetAcos / 100) * price * cvrFrac
+  const safeCpc = breakevenAcos * price * cvrFrac
+  const adCostPerSale = (targetAcos / 100) * price
+  const netProfit = grossMargin - adCostPerSale
+  const netMarginRate = price > 0 ? netProfit / price : 0
+
+  const applyStrategy = (s: Strategy) => {
+    setTargetAcos(Math.max(0, marginRate * 100 * s.factor))
+  }
+
+  const ic = 'w-32 text-right border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40'
 
   return (
-    <ToolLayout title="CPC 利润测算" description="综合FBA费用、佣金、CPC成本估算每单净利润">
+    <ToolLayout title="CPC利润测算" description="综合采购、头程、FBA、佣金、退货损失，反推目标CPC与盈亏平衡点">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
-          <h3 className="font-semibold text-gray-700">基本参数</h3>
-          {[
-            { label: '售价 ($)', value: price, setter: setPrice, step: 0.5 },
-            { label: 'FBA配送费 ($)', value: fbaFee, setter: setFbaFee, step: 0.1 },
-            { label: '广告CPC ($)', value: cpc, setter: setCpc, step: 0.01 },
-            { label: '广告转化率 (如 0.1 = 10%)', value: cvr, setter: setCvr, step: 0.01 },
-          ].map(({ label, value, setter, step }) => (
-            <div key={label} className="flex items-center justify-between">
-              <label className="text-sm text-gray-600 w-44">{label}</label>
-              <input type="number" min="0" step={step} value={value}
-                onChange={e => setter(parseFloat(e.target.value) || 0)}
-                className="w-32 text-right border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        {/* Config */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700">产品基础档案</h3>
+            <div className="flex items-center justify-between"><label className="text-sm text-gray-600">采购成本 (¥)</label><input type="number" min="0" step="0.5" value={cost} onChange={e => setCost(parseFloat(e.target.value) || 0)} className={ic}/></div>
+            <div className="flex items-center justify-between"><label className="text-sm text-gray-600">头程运费 (¥)</label><input type="number" min="0" step="0.5" value={shipping} onChange={e => setShipping(parseFloat(e.target.value) || 0)} className={ic}/></div>
+            <div className="flex items-center justify-between"><label className="text-sm text-gray-600">汇率 (USD/RMB)</label><input type="number" min="1" step="0.01" value={rate} onChange={e => setRate(parseFloat(e.target.value) || 7.25)} className={ic}/></div>
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-gray-600">产品类目（决定佣金）</label>
+              <select value={categoryIdx} onChange={e => setCategoryIdx(parseInt(e.target.value))}
+                className="w-44 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40">
+                {CATEGORIES.map((c, i) => <option key={c.name} value={i}>{c.name}（{(c.rate * 100).toFixed(0)}%）</option>)}
+              </select>
             </div>
-          ))}
-          <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-600 w-44">品类（佣金率）</label>
-            <select value={category} onChange={e => setCategory(e.target.value)}
-              className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-              {CATEGORIES.map(c => <option key={c}>{c} ({(COMMISSION[c]*100).toFixed(0)}%)</option>)}
-            </select>
+            <div className="flex items-center justify-between"><label className="text-sm text-gray-600">售价 ($)</label><input type="number" min="0" step="0.5" value={price} onChange={e => setPrice(parseFloat(e.target.value) || 0)} className={ic}/></div>
+            <div className="flex items-center justify-between"><label className="text-sm text-gray-600">FBA配送费 ($)</label><input type="number" min="0" step="0.1" value={fbaFee} onChange={e => setFbaFee(parseFloat(e.target.value) || 0)} className={ic}/></div>
+            <div className="flex items-center justify-between"><label className="text-sm text-gray-600">退货率 (%)</label><input type="number" min="0" step="0.5" value={returnRate} onChange={e => setReturnRate(parseFloat(e.target.value) || 0)} className={ic}/></div>
+            <div className="flex items-center justify-between"><label className="text-sm text-gray-600">每单退货杂费 ($)</label><input type="number" min="0" step="0.5" value={returnFee} onChange={e => setReturnFee(parseFloat(e.target.value) || 0)} className={ic}/></div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700">广告参数</h3>
+            <div className="flex items-center justify-between"><label className="text-sm text-gray-600">预估转化率 CVR (%)</label><input type="number" min="0.1" step="0.5" value={cvr} onChange={e => setCvr(parseFloat(e.target.value) || 0.1)} className={ic}/></div>
+            <div className="flex items-center justify-between"><label className="text-sm text-gray-600">目标 ACOS (%)</label><input type="number" min="0" step="1" value={targetAcos} onChange={e => setTargetAcos(parseFloat(e.target.value) || 0)} className={ic}/></div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-2">推广阶段策略（自动设定目标 ACOS = 毛利率 × 系数）</label>
+              <div className="flex gap-2 flex-wrap">
+                {STRATEGIES.map(s => (
+                  <button key={s.name} onClick={() => applyStrategy(s)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-gray-600 hover:bg-[#5b5bd6]/10 hover:text-[#5b5bd6] transition-colors">
+                    {s.emoji} {s.name}（{(s.factor * 100).toFixed(0)}%）
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h3 className="font-semibold text-gray-700 mb-4">计算结果</h3>
-          <Row label="售价" value={`$${price.toFixed(2)}`} />
-          <Row label="FBA配送费" value={`-$${fbaFee.toFixed(2)}`} />
-          <Row label={`平台佣金 (${(rate*100).toFixed(0)}%)`} value={`-$${result.commission.toFixed(2)}`} />
-          <Row label="每单广告花费" value={`-$${result.adCostPerSale.toFixed(2)}`} />
-          <Row label="实际ACOS" value={`${(result.acos*100).toFixed(1)}%`} />
-          <Row label="盈亏平衡ACOS" value={`${(beAcos*100).toFixed(1)}%`} />
-          <Row label="每单净利润" value={`$${result.netProfit.toFixed(2)}`} highlight />
-          {result.netProfit < 0 && (
-            <p className="mt-3 text-xs text-red-500 bg-red-50 rounded-lg p-3">
-              当前参数下每单亏损 ${Math.abs(result.netProfit).toFixed(2)}，建议降低CPC或提升售价
-            </p>
-          )}
+
+        {/* Results */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">利润测算</h3>
+            <div className="space-y-1.5">
+              {([
+                ['售价', `$${price.toFixed(2)}`, ''],
+                ['采购+头程', `-$${(purchaseUSD + shippingUSD).toFixed(2)}`, 'text-gray-500'],
+                [`平台佣金（${(commRate * 100).toFixed(0)}%）`, `-$${commission.toFixed(2)}`, 'text-gray-500'],
+                ['FBA配送费', `-$${fbaFee.toFixed(2)}`, 'text-gray-500'],
+                [`退货损失（${returnRate}%）`, `-$${(price * rr + rr * returnFee).toFixed(2)}`, 'text-gray-500'],
+                ['有效毛利', `$${grossMargin.toFixed(2)}`, grossMargin >= 0 ? 'text-gray-800 font-semibold' : 'text-red-500 font-semibold'],
+                ['毛利率', `${(marginRate * 100).toFixed(1)}%`, 'text-gray-800 font-semibold'],
+              ] as [string, string, string][]).map(([k, v, cls]) => (
+                <div key={k} className="flex justify-between text-sm border-b border-gray-50 pb-1.5">
+                  <span className="text-gray-600">{k}</span>
+                  <span className={cls || 'text-gray-700'}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-[#5b5bd6]/5 border border-[#5b5bd6]/20 rounded-xl p-5">
+            <h3 className="text-sm font-bold text-[#5b5bd6] mb-3">反推 CPC & 综合利润</h3>
+            <div className="space-y-1.5">
+              {([
+                ['盈亏平衡 ACOS', `${(breakevenAcos * 100).toFixed(1)}%`],
+                ['盈亏平衡点击数（每单）', `${breakevenClicks.toFixed(1)} 次`],
+                ['安全 CPC（保本上限）', `$${safeCpc.toFixed(2)}`],
+                [`推荐 CPC（目标ACOS ${targetAcos}%）`, `$${recommendedCpc.toFixed(2)}`],
+                ['每单广告花费', `$${adCostPerSale.toFixed(2)}`],
+              ] as [string, string][]).map(([k, v]) => (
+                <div key={k} className="flex justify-between text-sm border-b border-[#5b5bd6]/10 pb-1.5">
+                  <span className="text-gray-600">{k}</span>
+                  <span className="font-semibold text-gray-800">{v}</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm pt-1">
+                <span className="text-gray-600">综合利润 / 利润率</span>
+                <span className={`font-bold ${netProfit >= 0 ? 'text-[#5b5bd6]' : 'text-red-500'}`}>
+                  ${netProfit.toFixed(2)} / {(netMarginRate * 100).toFixed(1)}%
+                </span>
+              </div>
+            </div>
+            {grossMargin <= 0 && (
+              <p className="mt-3 text-xs text-red-600 bg-red-50 rounded-lg p-3">
+                基础毛利已为负，请检查成本或定价 —— 此时任何广告投放都会扩大亏损。
+              </p>
+            )}
+            {grossMargin > 0 && netProfit < 0 && (
+              <p className="mt-3 text-xs text-orange-600 bg-orange-50 rounded-lg p-3">
+                综合利润为负：目标 ACOS {targetAcos}% 已超过盈亏平衡 ACOS {(breakevenAcos * 100).toFixed(1)}%，广告花费过高。
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </ToolLayout>
