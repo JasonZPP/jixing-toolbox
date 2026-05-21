@@ -157,7 +157,7 @@ export default function MarketingCalendarPage() {
   }, [filtered])
 
   const toggleCat = (c: Category) =>
-    setCats(p => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n })
+    setCats(p => { const n = new Set(p); if (n.has(c)) n.delete(c); else n.add(c); return n })
 
   const hasFilter = country !== 'all' || cats.size > 0 || month > 0 || quarter > 0 || !!query
 

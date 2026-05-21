@@ -171,7 +171,7 @@ export default function MarketingCalendarSummaryPage() {
   }, [filtered])
 
   const toggleCat = (c: Category) =>
-    setCats(p => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n })
+    setCats(p => { const n = new Set(p); if (n.has(c)) n.delete(c); else n.add(c); return n })
 
   const hasFilter = market !== 'all' || cats.size > 0 || month > 0 || quarter > 0 || !!query
   const resetAll = () => { setMarket('all'); setCats(new Set()); setMonth(0); setQuarter(0); setQuery('') }
