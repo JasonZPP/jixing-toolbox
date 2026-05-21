@@ -24,8 +24,9 @@ function ToolIcon({ name }: { name: string }) {
 }
 
 export default function HomePage() {
+  type CategoryKey = 'all' | 'ad' | 'ops' | 'image' | 'other'
   const [query, setQuery] = useState('')
-  const [activeCategory, setActiveCategory] = useState('all')
+  const [activeCategory, setActiveCategory] = useState<CategoryKey>('all')
 
   const filtered = useMemo(
     () => filterTools(tools, query, activeCategory),
@@ -84,7 +85,7 @@ export default function HomePage() {
         {/* Stats */}
         <div className="flex flex-col gap-3 mt-6 relative z-10">
           {[
-            { n: '38', l: '专业工具' },
+            { n: String(tools.length), l: '专业工具' },
             { n: '4', l: '核心模块' },
             { n: '0', l: '登录要求' },
           ].map(({ n, l }) => (
