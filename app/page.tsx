@@ -159,6 +159,25 @@ export default function HomePage() {
 
         {/* Tool Sections */}
         <div className="flex-1 px-5 py-4 flex flex-col gap-6">
+
+          {/* Quick resource links */}
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { href: '/marketing-calendar', icon: '📅', label: '2026年电商营销日历' },
+              { href: '/marketing-calendar-summary', icon: '📊', label: '2026年亚马逊全球营销日历' },
+              { href: '/china-industry-belts', icon: '🏭', label: '中国产业带' },
+            ].map(item => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#5b5bd6]/20 rounded-lg text-xs font-medium text-[#5b5bd6] hover:bg-[#5b5bd6]/5 hover:border-[#5b5bd6]/40 transition-all whitespace-nowrap"
+              >
+                <span>{item.icon}</span>
+                {item.label}
+              </Link>
+            ))}
+          </div>
+
           {grouped.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-black/25">
               <Icons.SearchX className="w-8 h-8 mb-3 opacity-40" />
@@ -180,10 +199,10 @@ export default function HomePage() {
                     <Link
                       key={tool.slug}
                       href={`/functionality/${tool.slug}`}
-                      className="group bg-white border border-black/[0.06] rounded-xl p-3 hover:border-[#5b5bd6]/40 hover:shadow-sm transition-all relative overflow-hidden"
+                      className="group bg-white border border-black/[0.06] rounded-xl p-4 hover:border-[#5b5bd6]/40 hover:shadow-sm transition-all relative overflow-hidden"
                     >
                       <div
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center mb-2.5 ${
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${
                           tool.color === 'blue'
                             ? 'bg-[#5b5bd6]/10 text-[#5b5bd6]'
                             : 'bg-orange-400/15 text-orange-500'
@@ -191,13 +210,13 @@ export default function HomePage() {
                       >
                         <ToolIcon name={tool.icon} />
                       </div>
-                      <p className="text-[11px] font-bold text-gray-800 leading-snug mb-1">
+                      <p className="text-sm font-bold text-gray-800 leading-snug mb-1">
                         {tool.name}
                       </p>
-                      <p className="text-[9.5px] text-gray-400 leading-relaxed line-clamp-2">
+                      <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">
                         {tool.description}
                       </p>
-                      <span className="absolute bottom-2.5 right-3 text-[#5b5bd6]/40 opacity-0 group-hover:opacity-100 transition-opacity text-xs">
+                      <span className="absolute bottom-3 right-3 text-[#5b5bd6]/40 opacity-0 group-hover:opacity-100 transition-opacity text-xs">
                         →
                       </span>
                     </Link>
