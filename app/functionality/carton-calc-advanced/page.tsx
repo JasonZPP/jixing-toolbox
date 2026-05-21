@@ -7,6 +7,15 @@ type Mode = 'smart' | 'known' | 'multi'
 type MultiSubMode = 'separate' | 'mixed' | 'split'
 const VOL_DIVS: number[] = [5000, 6000, 8000]
 
+// Color palette: [light fill, medium fill, dark stroke]
+const PROD_PALETTE = [
+  { f: '#c4b5fd', m: '#a78bfa', d: '#7c3aed' },
+  { f: '#6ee7b7', m: '#34d399', d: '#059669' },
+  { f: '#fca5a5', m: '#f87171', d: '#dc2626' },
+  { f: '#93c5fd', m: '#60a5fa', d: '#2563eb' },
+  { f: '#fde68a', m: '#fbbf24', d: '#d97706' },
+]
+
 function getOrientations(pL: number, pW: number, pH: number, cL: number, cW: number, cH: number) {
   const perms: [number, number, number][] = [
     [pL, pW, pH], [pL, pH, pW], [pW, pL, pH],
@@ -23,19 +32,46 @@ interface MultiProduct {
   pL: number; pW: number; pH: number; pWt: number; qty: number
 }
 
+interface PackedItem {
+  x: number; y: number; z: number   // position in carton (x=along cL, y=height, z=along cW)
+  w: number; h: number; d: number   // size
+  name: string; ci: number          // color index
+}
+
+function packItems(
+  cL: number, cW: number, cH: number,
+  items: Array<{ name: string; w: number; d: number; h: number; qty: number; ci: number }>
+): PackedItem[] {
+  const placed: PackedItem[] = []
+  let cx = 0, cy = 0, cz = 0
+  let rowMaxD = 0, layerMaxH = 0
+  for (const item of items) {
+    if (!item.w || !item.d || !item.h || !item.qty) continue
+    for (let q = 0; q < item.qty; q++) {
+      if (cx + item.w > cL + 0.01) { cz += rowMaxD; cx = 0; rowMaxD = 0 }
+      if (cz + item.d > cW + 0.01) { cy += layerMaxH; cz = 0; cx = 0; rowMaxD = 0; layerMaxH = 0 }
+      if (cy + item.h > cH + 0.01) break
+      placed.push({ x: cx, y: cy, z: cz, w: item.w, h: item.h, d: item.d, name: item.name, ci: item.ci })
+      cx += item.w
+      rowMaxD = Math.max(rowMaxD, item.d)
+      layerMaxH = Math.max(layerMaxH, item.h)
+    }
+  }
+  return placed
+}
+
 let nextId = 1
 
-// ─── Isometric Packing Diagram ───
-// prodA → fits along cL (length), prodB → fits along cW (depth), prodC → fits along cH (height)
+// ─── Single-product isometric diagram ───
 function PackingDiagram({ cL, cW, cH, prodA, prodB, prodC, W = 280, H = 200 }: {
   cL: number; cW: number; cH: number
   prodA: number; prodB: number; prodC: number
   W?: number; H?: number
 }) {
   if (!cL || !cW || !cH || !prodA || !prodB || !prodC) return null
-  const nx = Math.floor(cL / prodA)   // columns along length
-  const nz = Math.floor(cW / prodB)   // columns along depth
-  const ny = Math.floor(cH / prodC)   // layers along height
+  const nx = Math.floor(cL / prodA)
+  const nz = Math.floor(cW / prodB)
+  const ny = Math.floor(cH / prodC)
   if (!nx || !ny || !nz) return null
 
   const C30 = 0.8660254, S30 = 0.5
@@ -54,17 +90,13 @@ function PackingDiagram({ cL, cW, cH, prodA, prodB, prodC, W = 280, H = 200 }: {
   const P = (arr: [number, number][]) => arr.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
   type L4 = [number, number, number, number]
 
-  // Full carton faces
   const FF = [iso(0,0,0), iso(cL,0,0), iso(cL,cH,0), iso(0,cH,0)]
   const RF = [iso(cL,0,0), iso(cL,0,cW), iso(cL,cH,cW), iso(cL,cH,0)]
   const TF = [iso(0,cH,0), iso(cL,cH,0), iso(cL,cH,cW), iso(0,cH,cW)]
-
-  // Occupied sub-region per face
   const FO = [iso(0,0,0), iso(nx*prodA,0,0), iso(nx*prodA,ny*prodC,0), iso(0,ny*prodC,0)]
   const RO = [iso(cL,0,0), iso(cL,0,nz*prodB), iso(cL,ny*prodC,nz*prodB), iso(cL,ny*prodC,0)]
   const TO = [iso(0,cH,0), iso(nx*prodA,cH,0), iso(nx*prodA,cH,nz*prodB), iso(0,cH,nz*prodB)]
 
-  // Grid lines only over occupied region
   const FL: L4[] = []
   for (let i = 1; i <= nx; i++) { const [x1,y1]=iso(i*prodA,0,0); const [x2,y2]=iso(i*prodA,ny*prodC,0); FL.push([x1,y1,x2,y2]) }
   for (let j = 1; j <= ny; j++) { const [x1,y1]=iso(0,j*prodC,0); const [x2,y2]=iso(nx*prodA,j*prodC,0); FL.push([x1,y1,x2,y2]) }
@@ -75,42 +107,125 @@ function PackingDiagram({ cL, cW, cH, prodA, prodB, prodC, W = 280, H = 200 }: {
   for (let i = 1; i <= nx; i++) { const [x1,y1]=iso(i*prodA,cH,0); const [x2,y2]=iso(i*prodA,cH,nz*prodB); TL.push([x1,y1,x2,y2]) }
   for (let k = 1; k <= nz; k++) { const [x1,y1]=iso(0,cH,k*prodB); const [x2,y2]=iso(nx*prodA,cH,k*prodB); TL.push([x1,y1,x2,y2]) }
 
-  // Hidden back edges (dashed)
   const BE: [[number,number],[number,number]][] = [
     [iso(0,0,0), iso(0,0,cW)], [iso(0,0,cW), iso(cL,0,cW)], [iso(0,0,cW), iso(0,cH,cW)],
   ]
-
-  // Dimension label anchor points
-  const [lLx, lLy] = iso(cL / 2, 0, 0)   // front bottom center → cL label below
-  const [lHy] = [oy - cH / 2 * S]         // midpoint of left vertical edge
-  const [lWx, lWy] = iso(cL, 0, cW / 2)  // right face bottom center → cW label
-
+  const [lLx, lLy] = iso(cL / 2, 0, 0)
+  const lHy = oy - cH / 2 * S
+  const [lWx, lWy] = iso(cL, 0, cW / 2)
   const util = Math.round(nx * prodA * ny * prodC * nz * prodB / (cL * cW * cH) * 100)
 
   return (
     <div className="flex flex-col items-center select-none">
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="max-w-full overflow-visible">
-        {/* Hidden back edges */}
         {BE.map(([a, b], i) => (
           <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#9ca3af" strokeWidth="0.8" strokeDasharray="3,2"/>
         ))}
-
-        {/* Face base (waste area = lighter) */}
         <polygon points={P(FF)} fill="#f1efff" stroke="none"/>
         <polygon points={P(RF)} fill="#e8e5fe" stroke="none"/>
         <polygon points={P(TF)} fill="#f7f6ff" stroke="none"/>
-
-        {/* Occupied region highlight */}
         <polygon points={P(FO)} fill="#c4b5fd"/>
         <polygon points={P(RO)} fill="#b4a3fc"/>
         <polygon points={P(TO)} fill="#d4c7fe"/>
-
-        {/* Grid lines */}
         {FL.map(([x1,y1,x2,y2],i) => <line key={`f${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#6d28d9" strokeWidth="0.65" opacity="0.85"/>)}
         {RL.map(([x1,y1,x2,y2],i) => <line key={`r${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#5b21b6" strokeWidth="0.65" opacity="0.85"/>)}
         {TL.map(([x1,y1,x2,y2],i) => <line key={`t${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#4c1d95" strokeWidth="0.65" opacity="0.85"/>)}
+        <polygon points={P(FF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
+        <polygon points={P(RF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
+        <polygon points={P(TF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
+        <text x={lLx} y={lLy + 13} textAnchor="middle" fontSize="9" fill="#6b7280">长 {cL}cm</text>
+        <text x={ox - 10} y={lHy + 3} textAnchor="end" fontSize="9" fill="#6b7280">高 {cH}cm</text>
+        <text x={lWx + 7} y={lWy + 10} textAnchor="start" fontSize="9" fill="#6b7280">宽 {cW}cm</text>
+      </svg>
+      <div className="flex flex-wrap justify-center items-center gap-x-3 gap-y-0.5 text-xs mt-1 px-2">
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 rounded-sm bg-[#c4b5fd] border border-[#6d28d9]/40"/>
+          <span className="text-gray-500">产品占用</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 rounded-sm bg-[#f1efff] border border-[#9ca3af]/40"/>
+          <span className="text-gray-500">空余空间</span>
+        </span>
+        <span className="font-semibold text-[#5b5bd6]">{nx}列 × {ny}层 × {nz}深 = {nx * ny * nz} 件/箱</span>
+        <span className="text-gray-400">利用率 {util}%</span>
+      </div>
+    </div>
+  )
+}
 
-        {/* Face outlines */}
+// ─── Multi-product isometric diagram ───
+function MultiPackingDiagram({ cL, cW, cH, packed, legend, W = 320, H = 230 }: {
+  cL: number; cW: number; cH: number
+  packed: PackedItem[]
+  legend: Array<{ name: string; ci: number; qty: number }>
+  W?: number; H?: number
+}) {
+  if (!cL || !cW || !cH || packed.length === 0) return null
+
+  const C30 = 0.8660254, S30 = 0.5
+  const PAD = Math.round(Math.min(W, H) * 0.14)
+  const S = Math.min(
+    (W - PAD * 2) / ((cL + cW) * C30),
+    (H - PAD * 2.2) / ((cL + cW) * S30 + cH),
+  )
+  const ox = W / 2 + (cW - cL) * C30 * S / 2
+  const oy = H - PAD * 0.9
+
+  const iso = (r: number, h: number, d: number): [number, number] => [
+    ox + (r - d) * C30 * S,
+    oy - ((r + d) * S30 + h) * S,
+  ]
+  const P = (pts: [number, number][]) => pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+
+  // Painter's order: back rows (large z) first, then left (small x), then lower (small y)
+  const sorted = [...packed].sort((a, b) =>
+    b.z !== a.z ? b.z - a.z : a.x !== b.x ? a.x - b.x : a.y - b.y
+  )
+
+  const FF = [iso(0,0,0), iso(cL,0,0), iso(cL,cH,0), iso(0,cH,0)]
+  const RF = [iso(cL,0,0), iso(cL,0,cW), iso(cL,cH,cW), iso(cL,cH,0)]
+  const TF = [iso(0,cH,0), iso(cL,cH,0), iso(cL,cH,cW), iso(0,cH,cW)]
+
+  const backEdges: [[number,number],[number,number]][] = [
+    [iso(0,0,0), iso(0,0,cW)],
+    [iso(0,0,cW), iso(cL,0,cW)],
+    [iso(0,0,cW), iso(0,cH,cW)],
+  ]
+
+  const [lLx, lLy] = iso(cL / 2, 0, 0)
+  const lHy = oy - cH / 2 * S
+  const [lWx, lWy] = iso(cL, 0, cW / 2)
+
+  return (
+    <div className="flex flex-col items-center select-none">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="max-w-full overflow-visible">
+        {/* Hidden back edges */}
+        {backEdges.map(([a, b], i) => (
+          <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#9ca3af" strokeWidth="0.8" strokeDasharray="3,2"/>
+        ))}
+
+        {/* Carton face backgrounds (empty space) */}
+        <polygon points={P(FF)} fill="#f5f4ff" stroke="none"/>
+        <polygon points={P(RF)} fill="#eeecff" stroke="none"/>
+        <polygon points={P(TF)} fill="#f8f7ff" stroke="none"/>
+
+        {/* Products in painter's order */}
+        {sorted.map((item, idx) => {
+          const c = PROD_PALETTE[item.ci % PROD_PALETTE.length]
+          const { x, y, z, w, h, d } = item
+          const fF = [iso(x,y,z), iso(x+w,y,z), iso(x+w,y+h,z), iso(x,y+h,z)]
+          const rF = [iso(x+w,y,z), iso(x+w,y,z+d), iso(x+w,y+h,z+d), iso(x+w,y+h,z)]
+          const tF = [iso(x,y+h,z), iso(x+w,y+h,z), iso(x+w,y+h,z+d), iso(x,y+h,z+d)]
+          return (
+            <g key={idx}>
+              <polygon points={P(fF)} fill={c.f} stroke={c.d} strokeWidth="0.6"/>
+              <polygon points={P(rF)} fill={c.m} stroke={c.d} strokeWidth="0.6"/>
+              <polygon points={P(tF)} fill={c.f} stroke={c.d} strokeWidth="0.6" opacity="0.9"/>
+            </g>
+          )
+        })}
+
+        {/* Carton outline on top */}
         <polygon points={P(FF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
         <polygon points={P(RF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
         <polygon points={P(TF)} fill="none" stroke="#5b5bd6" strokeWidth="1.5"/>
@@ -122,19 +237,17 @@ function PackingDiagram({ cL, cW, cH, prodA, prodB, prodC, W = 280, H = 200 }: {
       </svg>
 
       {/* Legend */}
-      <div className="flex flex-wrap justify-center items-center gap-x-3 gap-y-0.5 text-xs mt-1 px-2">
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded-sm bg-[#c4b5fd] border border-[#6d28d9]/40"/>
-          <span className="text-gray-500">产品占用</span>
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded-sm bg-[#f1efff] border border-[#9ca3af]/40"/>
-          <span className="text-gray-500">空余空间</span>
-        </span>
-        <span className="font-semibold text-[#5b5bd6]">
-          {nx}列 × {ny}层 × {nz}深 = {nx * ny * nz} 件/箱
-        </span>
-        <span className="text-gray-400">利用率 {util}%</span>
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs mt-2 px-2">
+        {legend.map(l => {
+          const c = PROD_PALETTE[l.ci % PROD_PALETTE.length]
+          return (
+            <span key={l.name} className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm border" style={{ background: c.f, borderColor: c.d }}/>
+              <span className="text-gray-600 font-medium">{l.name}</span>
+              <span className="text-gray-400">× {l.qty} 件</span>
+            </span>
+          )
+        })}
       </div>
     </div>
   )
@@ -200,8 +313,6 @@ export default function CartonCalcPage() {
   const smartCartons = best && best.qty > 0 ? Math.ceil(totalQty / best.qty) : 0
   const qtyPerCarton = knownCartons > 0 ? Math.floor(totalQty / knownCartons) : 0
   const remainder = totalQty % knownCartons
-
-  // Parse best orientation for diagram (a×b×c → prodA along cL, prodB along cW, prodC along cH)
   const bestParts = best ? best.label.split('×').map(Number) : [0, 0, 0]
 
   const addProduct = () => setProducts(p => [...p, { id: nextId++, name: `产品 ${String.fromCharCode(65 + p.length)}`, pL: 15, pW: 10, pH: 8, pWt: 0.3, qty: 20 }])
@@ -254,6 +365,20 @@ export default function CartonCalcPage() {
     return { name: p.name, current: p.qty, suggested: p.qty - rem }
   }).filter(Boolean)
 
+  // Build packed items for mixed / split diagrams
+  const buildDiagramItems = (perCarton: { name: string; base: number }[]) =>
+    products.map((p, i) => {
+      const bst = getOrientations(p.pL, p.pW, p.pH, multiCL, multiCW, multiCH)[0]
+      const pts = bst ? bst.label.split('×').map(Number) : [0, 0, 0]
+      const base = perCarton.find(r => r.name === p.name)?.base ?? 0
+      return { name: p.name, w: pts[0], d: pts[1], h: pts[2], qty: base, ci: i }
+    }).filter(item => item.qty > 0 && item.w > 0 && item.d > 0 && item.h > 0)
+
+  const mixDiagramItems = buildDiagramItems(mixedPerCarton)
+  const mixPacked = packItems(multiCL, multiCW, multiCH, mixDiagramItems)
+  const splitDiagramItems = buildDiagramItems(splitPerCarton)
+  const splitPacked = packItems(multiCL, multiCW, multiCH, splitDiagramItems)
+
   const ic = 'w-28 text-right border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40'
   const icNarrow = 'w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#5b5bd6]/40 text-right'
 
@@ -272,7 +397,6 @@ export default function CartonCalcPage() {
         {/* ── Single-product modes ── */}
         {mode !== 'multi' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Left: inputs */}
             <div className="space-y-4">
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
                 <h3 className="text-sm font-semibold text-gray-700">产品尺寸 (cm) & 重量</h3>
@@ -317,7 +441,6 @@ export default function CartonCalcPage() {
               </div>
             </div>
 
-            {/* Right: results */}
             <div className="space-y-4">
               {mode === 'smart' ? (
                 <>
@@ -377,7 +500,6 @@ export default function CartonCalcPage() {
                 </div>
               )}
 
-              {/* Packing diagram */}
               {best && best.qty > 0 && (
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
                   <h3 className="text-sm font-semibold text-gray-700 mb-2">堆放示意图（最优方向）</h3>
@@ -461,11 +583,14 @@ export default function CartonCalcPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {products.map(p => (
+                    {products.map((p, idx) => (
                       <tr key={p.id}>
                         <td className="py-2 pr-2">
-                          <input value={p.name} onChange={e => updateProduct(p.id, 'name', e.target.value)}
-                            className="w-24 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#5b5bd6]/50"/>
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: PROD_PALETTE[idx % PROD_PALETTE.length].f, border: `1px solid ${PROD_PALETTE[idx % PROD_PALETTE.length].d}` }}/>
+                            <input value={p.name} onChange={e => updateProduct(p.id, 'name', e.target.value)}
+                              className="w-20 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#5b5bd6]/50"/>
+                          </div>
                         </td>
                         {(['pL', 'pW', 'pH', 'pWt', 'qty'] as (keyof MultiProduct)[]).map(field => (
                           <td key={field} className="py-2 px-1 text-center">
@@ -503,9 +628,14 @@ export default function CartonCalcPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#5b5bd6]/10">
-                      {sepResults.map(r => (
+                      {sepResults.map((r, idx) => (
                         <tr key={r.name}>
-                          <td className="py-2 text-gray-700 font-medium">{r.name}</td>
+                          <td className="py-2">
+                            <span className="flex items-center gap-1.5 text-gray-700 font-medium">
+                              <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: PROD_PALETTE[idx % PROD_PALETTE.length].f, border: `1px solid ${PROD_PALETTE[idx % PROD_PALETTE.length].d}` }}/>
+                              {r.name}
+                            </span>
+                          </td>
                           <td className="py-2 text-center">{r.perCarton > 0 ? <span className="font-mono text-xs text-gray-600">{r.label} cm</span> : <span className="text-red-500 text-xs">装不下</span>}</td>
                           <td className="py-2 text-center font-semibold text-gray-800">{r.perCarton > 0 ? `${r.perCarton} 件` : '—'}</td>
                           <td className="py-2 text-center font-semibold text-[#5b5bd6]">{r.cartons > 0 ? `${r.cartons} 箱` : '—'}</td>
@@ -524,14 +654,13 @@ export default function CartonCalcPage() {
                   </table>
                 </div>
 
-                {/* Per-product packing diagrams */}
                 {sepResults.some(r => r.perCarton > 0) && (
                   <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-gray-700 mb-4">各产品堆放示意图</h3>
                     <div className={`grid gap-4 ${sepResults.length === 1 ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
-                      {sepResults.map(r => r.perCarton > 0 && (
-                        <div key={r.name} className="rounded-xl border border-[#5b5bd6]/15 bg-[#5b5bd6]/3 p-3">
-                          <p className="text-xs font-semibold text-[#5b5bd6] mb-2 text-center">{r.name}</p>
+                      {sepResults.map((r, idx) => r.perCarton > 0 && (
+                        <div key={r.name} className="rounded-xl border p-3" style={{ borderColor: PROD_PALETTE[idx % PROD_PALETTE.length].d + '40', background: PROD_PALETTE[idx % PROD_PALETTE.length].f + '18' }}>
+                          <p className="text-xs font-semibold mb-2 text-center" style={{ color: PROD_PALETTE[idx % PROD_PALETTE.length].d }}>{r.name}</p>
                           <PackingDiagram
                             cL={multiCL} cW={multiCW} cH={multiCH}
                             prodA={r.parts[0]} prodB={r.parts[1]} prodC={r.parts[2]}
@@ -545,54 +674,73 @@ export default function CartonCalcPage() {
               </>
             )}
 
-            {/* ── Mixed results ── */}
+            {/* ── Mixed results + diagram ── */}
             {multiSubMode === 'mixed' && (
-              <div className="bg-[#5b5bd6]/5 border border-[#5b5bd6]/20 rounded-xl p-5">
-                <h3 className="text-sm font-bold text-[#5b5bd6] mb-3">混装装箱方案</h3>
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {([
-                    ['推荐箱数', `${mixedN} 箱`, `由${mixVolLimited ? '体积' : '重量'}限制（体积需 ${mixByVol} 箱，重量需 ${mixByWt} 箱）`],
-                    ['每箱体积利用率', `${mixVolUtil.toFixed(1)}%`, `箱容 ${(multiCartonVol/1000).toFixed(1)} L，产品占 ${(mixVolPerCarton/1000).toFixed(1)} L`],
-                    ['每箱估算毛重', `${mixWtPerCarton.toFixed(2)} kg`, `含箱皮 ${multiCWt} kg`],
-                    ['总货物毛重', `${(mixedN * mixWtPerCarton).toFixed(2)} kg`, ''],
-                  ] as [string, string, string][]).map(([k, v, sub]) => (
-                    <div key={k} className="bg-white rounded-lg p-3 border border-[#5b5bd6]/10">
-                      <p className="text-xs text-gray-500">{k}</p>
-                      <p className="text-base font-bold text-[#5b5bd6] mt-0.5">{v}</p>
-                      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-                    </div>
-                  ))}
-                </div>
-                <h4 className="text-xs font-semibold text-gray-600 mb-2">每箱标准组合</h4>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-gray-400 border-b border-[#5b5bd6]/10">
-                      <th className="text-left pb-1.5 font-medium">产品</th>
-                      <th className="text-center pb-1.5 font-medium">每箱数量</th>
-                      <th className="text-right pb-1.5 font-medium">溢出件数</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#5b5bd6]/8">
-                    {mixedPerCarton.map(r => (
-                      <tr key={r.name}>
-                        <td className="py-2 text-gray-700 font-medium">{r.name}</td>
-                        <td className="py-2 text-center font-semibold text-gray-800">{r.base} 件</td>
-                        <td className="py-2 text-right">
-                          {r.extra > 0 ? <span className="text-orange-500 text-xs">+{r.extra} 件（分散入前 {r.extra} 箱）</span> : <span className="text-green-500 text-xs">整除 ✓</span>}
-                        </td>
-                      </tr>
+              <>
+                <div className="bg-[#5b5bd6]/5 border border-[#5b5bd6]/20 rounded-xl p-5">
+                  <h3 className="text-sm font-bold text-[#5b5bd6] mb-3">混装装箱方案</h3>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {([
+                      ['推荐箱数', `${mixedN} 箱`, `由${mixVolLimited ? '体积' : '重量'}限制（体积需 ${mixByVol} 箱，重量需 ${mixByWt} 箱）`],
+                      ['每箱体积利用率', `${mixVolUtil.toFixed(1)}%`, `箱容 ${(multiCartonVol/1000).toFixed(1)} L，产品占 ${(mixVolPerCarton/1000).toFixed(1)} L`],
+                      ['每箱估算毛重', `${mixWtPerCarton.toFixed(2)} kg`, `含箱皮 ${multiCWt} kg`],
+                      ['总货物毛重', `${(mixedN * mixWtPerCarton).toFixed(2)} kg`, ''],
+                    ] as [string, string, string][]).map(([k, v, sub]) => (
+                      <div key={k} className="bg-white rounded-lg p-3 border border-[#5b5bd6]/10">
+                        <p className="text-xs text-gray-500">{k}</p>
+                        <p className="text-base font-bold text-[#5b5bd6] mt-0.5">{v}</p>
+                        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-                {mixHasExtra && (
-                  <p className="mt-3 text-xs text-orange-600 bg-orange-50 rounded-lg p-2.5">
-                    部分产品有余件，前几箱多装 1 件。若需完全相同可调整总数量为 {mixedN} 的整数倍。
-                  </p>
+                  </div>
+                  <h4 className="text-xs font-semibold text-gray-600 mb-2">每箱标准组合</h4>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs text-gray-400 border-b border-[#5b5bd6]/10">
+                        <th className="text-left pb-1.5 font-medium">产品</th>
+                        <th className="text-center pb-1.5 font-medium">每箱数量</th>
+                        <th className="text-right pb-1.5 font-medium">溢出件数</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#5b5bd6]/8">
+                      {mixedPerCarton.map((r, idx) => (
+                        <tr key={r.name}>
+                          <td className="py-2">
+                            <span className="flex items-center gap-1.5 text-gray-700 font-medium">
+                              <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: PROD_PALETTE[idx % PROD_PALETTE.length].f, border: `1px solid ${PROD_PALETTE[idx % PROD_PALETTE.length].d}` }}/>
+                              {r.name}
+                            </span>
+                          </td>
+                          <td className="py-2 text-center font-semibold text-gray-800">{r.base} 件</td>
+                          <td className="py-2 text-right">
+                            {r.extra > 0 ? <span className="text-orange-500 text-xs">+{r.extra} 件（分散入前 {r.extra} 箱）</span> : <span className="text-green-500 text-xs">整除 ✓</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {mixHasExtra && (
+                    <p className="mt-3 text-xs text-orange-600 bg-orange-50 rounded-lg p-2.5">
+                      部分产品有余件，前几箱多装 1 件。若需完全相同可调整总数量为 {mixedN} 的整数倍。
+                    </p>
+                  )}
+                </div>
+
+                {mixPacked.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-1">单箱堆放示意图（混装）</h3>
+                    <p className="text-xs text-gray-400 mb-3">按各产品最优朝向逐行摆放，不同颜色代表不同产品</p>
+                    <MultiPackingDiagram
+                      cL={multiCL} cW={multiCW} cH={multiCH}
+                      packed={mixPacked}
+                      legend={mixDiagramItems.map(i => ({ name: i.name, ci: i.ci, qty: i.qty }))}
+                    />
+                  </div>
                 )}
-              </div>
+              </>
             )}
 
-            {/* ── Split results ── */}
+            {/* ── Split results + diagram ── */}
             {multiSubMode === 'split' && (
               <div className="space-y-4">
                 <div className={`rounded-xl p-5 border ${splitFits ? 'bg-[#5b5bd6]/5 border-[#5b5bd6]/20' : 'bg-red-50 border-red-200'}`}>
@@ -623,9 +771,14 @@ export default function CartonCalcPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#5b5bd6]/8">
-                      {splitPerCarton.map(r => (
+                      {splitPerCarton.map((r, idx) => (
                         <tr key={r.name}>
-                          <td className="py-2 text-gray-700 font-medium">{r.name}</td>
+                          <td className="py-2">
+                            <span className="flex items-center gap-1.5 text-gray-700 font-medium">
+                              <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: PROD_PALETTE[idx % PROD_PALETTE.length].f, border: `1px solid ${PROD_PALETTE[idx % PROD_PALETTE.length].d}` }}/>
+                              {r.name}
+                            </span>
+                          </td>
                           <td className="py-2 text-center font-bold text-gray-800">{r.base} 件</td>
                           <td className="py-2 text-center text-gray-500">{r.base * splitN} 件</td>
                           <td className="py-2 text-right">
@@ -641,6 +794,19 @@ export default function CartonCalcPage() {
                     </div>
                   )}
                 </div>
+
+                {splitPacked.length > 0 && splitFits && (
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-1">单箱堆放示意图（等比分仓）</h3>
+                    <p className="text-xs text-gray-400 mb-3">每箱 SKU 组合完全相同，不同颜色代表不同产品</p>
+                    <MultiPackingDiagram
+                      cL={multiCL} cW={multiCW} cH={multiCH}
+                      packed={splitPacked}
+                      legend={splitDiagramItems.map(i => ({ name: i.name, ci: i.ci, qty: i.qty }))}
+                    />
+                  </div>
+                )}
+
                 {splitHasRemainder && (
                   <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
                     <p className="text-xs font-semibold text-orange-700 mb-2">余件处理建议（调整总数量使能完全整除）</p>
