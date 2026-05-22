@@ -6,22 +6,22 @@ type DiscType = 'pct' | 'dollar'
 type StackRel = 'stack' | 'choice' | 'exclusive'
 
 interface Activity {
-  key: string; name: string; note: string
+  key: string; name: string; short: string; note: string
 }
 
 const ACTIVITIES: Activity[] = [
-  { key: 'coupon',       name: '优惠券（Coupon）',    note: '折扣 Percentage off；同一商品同时只有一张优惠券生效' },
-  { key: 'b2b',         name: 'B2B 价格',            note: '折扣 Percentage off；面向企业买家按采购量阶梯优惠' },
-  { key: 'unrestricted',name: '促销-无限制型',        note: '折扣 Percentage off / 买赠 BxGy；买家可叠加两种不同无限制促销' },
-  { key: 'priority',    name: '促销-优先型',          note: '折扣 Percentage off / 买赠 BxGy；买家只用折扣更优惠的那个（不叠加）' },
-  { key: 'social',      name: '社交媒体促销代码',     note: '站外社媒渠道分发的专属折扣码' },
-  { key: 'points',      name: '日本站积分',           note: '日本站专属积分返还，折算为等效折扣率' },
-  { key: 'deal',        name: '秒杀（LD）',           note: '折扣/买赠；4小时限时闪购，展示在 Deals 页面' },
-  { key: 'outlet',      name: '奥特莱斯（Outlet）',   note: '对即将到期或过季库存折扣清仓，由亚马逊审核入场' },
-  { key: 'sale',        name: '价格折扣',             note: '设定折后基础价，其余所有优惠以此为起算点，最先生效' },
-  { key: 'btc',         name: '品牌定制促销',         note: '面向品牌指定受众的促销活动，等效于促销-无限制型' },
-  { key: 'bcc',         name: '品牌定制优惠券',       note: '面向品牌指定受众的优惠券，等效于普通优惠券' },
-  { key: 'ped',         name: 'Prime 专享折扣',       note: '面向 Prime 会员的额外折扣，基于当前价叠加' },
+  { key: 'coupon',       name: '优惠券（Coupon）',    short: '优惠券',   note: '折扣 Percentage off；同一商品同时只有一张优惠券生效' },
+  { key: 'b2b',         name: 'B2B 价格',            short: 'B2B',      note: '折扣 Percentage off；面向企业买家按采购量阶梯优惠' },
+  { key: 'unrestricted',name: '促销-无限制型',        short: '无限制型', note: '折扣 Percentage off / 买赠 BxGy；买家可叠加两种不同无限制促销' },
+  { key: 'priority',    name: '促销-优先型',          short: '优先型',   note: '折扣 Percentage off / 买赠 BxGy；买家只用折扣更优惠的那个（不叠加）' },
+  { key: 'social',      name: '社交媒体促销代码',     short: '社交媒体', note: '站外社媒渠道分发的专属折扣码' },
+  { key: 'points',      name: '日本站积分',           short: '积分',     note: '日本站专属积分返还，折算为等效折扣率' },
+  { key: 'deal',        name: '秒杀（LD）',           short: '秒杀',     note: '折扣/买赠；4小时限时闪购，展示在 Deals 页面' },
+  { key: 'outlet',      name: '奥特莱斯（Outlet）',   short: '奥特莱斯', note: '对即将到期或过季库存折扣清仓，由亚马逊审核入场' },
+  { key: 'sale',        name: '价格折扣',             short: '价格折扣', note: '设定折后基础价，其余所有优惠以此为起算点，最先生效' },
+  { key: 'btc',         name: '品牌定制促销',         short: '品牌促销', note: '面向品牌指定受众的促销活动，等效于促销-无限制型' },
+  { key: 'bcc',         name: '品牌定制优惠券',       short: '品牌券',   note: '面向品牌指定受众的优惠券，等效于普通优惠券' },
+  { key: 'ped',         name: 'Prime 专享折扣',       short: 'Prime折扣',note: '面向 Prime 会员的额外折扣，基于当前价叠加' },
 ]
 
 // Stacking relationship matrix (symmetric)
@@ -129,12 +129,12 @@ export default function PromotionStackingPage() {
     // (matches reference site logic: total % applied to base, then $ off)
     let totalPct = 0
     let totalDollar = 0
-    const steps: Array<{ key: string; name: string; inp: ActivityState; after: number; skipped: boolean }> = []
+    const steps: Array<{ key: string; name: string; short: string; inp: ActivityState; after: number; skipped: boolean }> = []
 
     if (hasSale) {
       const inp = inputs.sale
       const after = inp.type === 'dollar' ? Math.max(0, price - inp.value) : price * (1 - inp.value / 100)
-      steps.push({ key: 'sale', name: '价格折扣', inp, after, skipped: false })
+      steps.push({ key: 'sale', name: '价格折扣', short: '价格折扣', inp, after, skipped: false })
     }
 
     for (const a of nonSaleSelected) {
@@ -144,7 +144,7 @@ export default function PromotionStackingPage() {
         if (inp.type === 'pct') totalPct += inp.value / 100
         else totalDollar += inp.value
       }
-      steps.push({ key: a.key, name: a.name, inp, after: 0, skipped: sk })
+      steps.push({ key: a.key, name: a.name, short: a.short, inp, after: 0, skipped: sk })
     }
 
     const afterPct = basePrice * Math.max(0, 1 - totalPct)
@@ -252,44 +252,58 @@ export default function PromotionStackingPage() {
           )}
 
           <div className="space-y-1.5 max-h-[460px] overflow-y-auto pr-1">
-            {pairs.map(({ a, b, rel, key }) => (
-              <div key={key} className={`flex items-center justify-between rounded-lg border px-3 py-2 ${REL_STYLE[rel]}`}>
-                <span className="text-xs font-medium">
-                  {a.name} + {b.name}
-                </span>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 ${REL_STYLE[rel]}`}>
-                    {REL_LABEL[rel]}
-                  </span>
+            {pairs.map(({ a, b, rel, key }) => {
+              const isYes = !!choiceYes[key]
+              return (
+                <div key={key} className={`rounded-lg border px-3 py-2 ${REL_STYLE[rel]}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium">
+                      {a.name} + {b.name}
+                    </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 ${REL_STYLE[rel]}`}>
+                        {REL_LABEL[rel]}
+                      </span>
+                      {rel === 'exclusive' && skippedKeys.has(a.key) && (
+                        <span className="text-[10px] opacity-60">取 {b.short}</span>
+                      )}
+                      {rel === 'exclusive' && skippedKeys.has(b.key) && (
+                        <span className="text-[10px] opacity-60">取 {a.short}</span>
+                      )}
+                    </div>
+                  </div>
                   {rel === 'choice' && (
-                    <label className="flex items-center gap-1 cursor-pointer" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox"
-                        checked={!!choiceYes[key]}
-                        onChange={e => setChoiceYes(p => ({ ...p, [key]: e.target.checked }))}
-                        className="accent-[#5b5bd6] w-3 h-3"/>
-                      <span className="text-[10px]">是(YES)</span>
-                    </label>
-                  )}
-                  {rel === 'exclusive' && skippedKeys.has(a.key) && (
-                    <span className="text-[10px] opacity-60">取 {b.name}</span>
-                  )}
-                  {rel === 'exclusive' && skippedKeys.has(b.key) && (
-                    <span className="text-[10px] opacity-60">取 {a.name}</span>
+                    <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-current/10">
+                      <span className="text-[11px] opacity-70">允许叠加使用?</span>
+                      <label className="flex items-center gap-1.5 cursor-pointer" onClick={e => e.stopPropagation()}>
+                        <span className={`text-[10px] font-medium ${isYes ? 'text-[#5b5bd6]' : 'opacity-50'}`}>
+                          {isYes ? '是 (YES)' : '否 (NO)'}
+                        </span>
+                        <div
+                          onClick={() => setChoiceYes(p => ({ ...p, [key]: !isYes }))}
+                          className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer ${isYes ? 'bg-[#5b5bd6]' : 'bg-gray-300'}`}>
+                          <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${isYes ? 'translate-x-4' : 'translate-x-0.5'}`}/>
+                        </div>
+                      </label>
+                    </div>
                   )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Result */}
           {enough && (
             <div className="bg-gray-900 rounded-xl p-4 text-white space-y-2">
-              <div className="flex justify-between text-xs text-gray-400 pb-2 border-b border-gray-700">
+              <div className="flex gap-1 flex-wrap pb-2 border-b border-gray-700">
                 {steps.filter(s => !s.skipped).map((s, i) => (
-                  <span key={s.key} className="flex items-center gap-1">
-                    {i > 0 && <span className="text-gray-600">→</span>}
-                    <span className="text-gray-300">{fmtDisc(s.inp)}</span>
-                  </span>
+                  <div key={s.key} className="flex items-center gap-1">
+                    {i > 0 && <span className="text-gray-600 text-xs">→</span>}
+                    <div className="flex flex-col items-center bg-gray-800 rounded-lg px-2 py-1 min-w-[40px]">
+                      <span className="text-gray-200 text-xs font-semibold">{fmtDisc(s.inp)}</span>
+                      <span className="text-gray-500 text-[9px] leading-tight">{s.short}</span>
+                    </div>
+                  </div>
                 ))}
               </div>
               <div className="flex justify-between text-sm">
