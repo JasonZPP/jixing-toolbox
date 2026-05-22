@@ -93,11 +93,11 @@ export default function PromotionStackingPage() {
     return result
   }, [nonSaleSelected])
 
-  // Calculate effective discount (as fraction off, 0-1)
-  function effectivePct(key: string, currentPrice: number): number {
+  // Calculate effective discount as pct (0-1) based on base price
+  function effectivePct(key: string, basePrice: number): number {
     const inp = inputs[key]
     if (!inp) return 0
-    if (inp.type === 'dollar') return Math.min(inp.value / currentPrice, 1)
+    if (inp.type === 'dollar') return basePrice > 0 ? Math.min(inp.value / basePrice, 1) : 0
     return inp.value / 100
   }
 
@@ -105,6 +105,7 @@ export default function PromotionStackingPage() {
   const { skippedKeys, finalPrice, steps } = useMemo(() => {
     const skipped = new Set<string>()
 
+    // Step 1: apply sale price discount to get base
     let basePrice = price
     if (hasSale) {
       const inp = inputs.sale
@@ -112,7 +113,7 @@ export default function PromotionStackingPage() {
       else basePrice = price * (1 - inp.value / 100)
     }
 
-    // Determine skips
+    // Step 2: determine skips (exclusive or choice=NO → keep better one)
     for (const { a, b, rel, key } of pairs) {
       if (rel === 'exclusive' || (rel === 'choice' && !choiceYes[key])) {
         const dA = effectivePct(a.key, basePrice)
@@ -124,23 +125,40 @@ export default function PromotionStackingPage() {
       }
     }
 
-    // Apply non-skipped activities in order
-    let cur = basePrice
+    // Step 3: additive — sum all % discounts, then subtract all $ discounts
+    // (matches reference site logic: total % applied to base, then $ off)
+    let totalPct = 0
+    let totalDollar = 0
     const steps: Array<{ key: string; name: string; inp: ActivityState; after: number; skipped: boolean }> = []
 
     if (hasSale) {
       const inp = inputs.sale
       const after = inp.type === 'dollar' ? Math.max(0, price - inp.value) : price * (1 - inp.value / 100)
       steps.push({ key: 'sale', name: '价格折扣', inp, after, skipped: false })
-      cur = after
     }
 
     for (const a of nonSaleSelected) {
       const inp = inputs[a.key]
       const sk = skipped.has(a.key)
-      const after = sk ? cur : inp.type === 'dollar' ? Math.max(0, cur - inp.value) : cur * (1 - inp.value / 100)
-      steps.push({ key: a.key, name: a.name, inp, after, skipped: sk })
-      if (!sk) cur = after
+      if (!sk) {
+        if (inp.type === 'pct') totalPct += inp.value / 100
+        else totalDollar += inp.value
+      }
+      steps.push({ key: a.key, name: a.name, inp, after: 0, skipped: sk })
+    }
+
+    const afterPct = basePrice * Math.max(0, 1 - totalPct)
+    const cur = Math.max(0, afterPct - totalDollar)
+
+    // fill in step 'after' for display (cumulative for show)
+    let running = basePrice
+    for (const s of steps) {
+      if (s.key === 'sale') { running = s.after; continue }
+      if (s.skipped) { s.after = running; continue }
+      const inp = s.inp
+      if (inp.type === 'pct') running = running * (1 - inp.value / 100)
+      else running = Math.max(0, running - inp.value)
+      s.after = running
     }
 
     return { skippedKeys: skipped, finalPrice: cur, steps }
