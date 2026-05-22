@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
-import { Plus, Trash2, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Plus, Trash2, AlertTriangle, CheckCircle, Bookmark, ChevronDown, ChevronUp, X } from 'lucide-react'
 
 type Mode = 'smart' | 'known' | 'multi'
 type MultiSubMode = 'separate' | 'mixed' | 'split'
@@ -15,6 +15,9 @@ const PROD_PALETTE = [
   { f: '#dbeafe', top: '#93c5fd', side: '#60a5fa', d: '#2563eb', text: '#1e3a8a' },
   { f: '#fef9c3', top: '#fde68a', side: '#fbbf24', d: '#d97706', text: '#78350f' },
 ]
+
+const SAVED_PRODS_KEY = 'carton_saved_prods_v1'
+interface SavedProduct { id: string; name: string; pL: number; pW: number; pH: number; pWt: number }
 
 function getOrientations(pL: number, pW: number, pH: number, cL: number, cW: number, cH: number) {
   const perms: [number, number, number][] = [
@@ -365,6 +368,26 @@ export default function CartonCalcPage() {
     { id: nextId++, name: '产品 A', pL: 20, pW: 15, pH: 8, pWt: 0.5, qty: 30 },
     { id: nextId++, name: '产品 B', pL: 12, pW: 10, pH: 6, pWt: 0.3, qty: 20 },
   ])
+  const [savedProds, setSavedProds] = useState<SavedProduct[]>(() => {
+    if (typeof window === 'undefined') return []
+    try { return JSON.parse(localStorage.getItem(SAVED_PRODS_KEY) || '[]') } catch { return [] }
+  })
+  const [showSaved, setShowSaved] = useState(false)
+
+  const saveProduct = (p: MultiProduct) => {
+    const sp: SavedProduct = { id: Date.now().toString(), name: p.name, pL: p.pL, pW: p.pW, pH: p.pH, pWt: p.pWt }
+    const updated = [sp, ...savedProds.filter(s => !(s.name === p.name && s.pL === p.pL && s.pW === p.pW && s.pH === p.pH && s.pWt === p.pWt))].slice(0, 50)
+    setSavedProds(updated)
+    localStorage.setItem(SAVED_PRODS_KEY, JSON.stringify(updated))
+  }
+  const deleteSavedProd = (id: string) => {
+    const updated = savedProds.filter(s => s.id !== id)
+    setSavedProds(updated)
+    localStorage.setItem(SAVED_PRODS_KEY, JSON.stringify(updated))
+  }
+  const addFromSaved = (sp: SavedProduct) => {
+    setProducts(p => [...p, { id: nextId++, name: sp.name, pL: sp.pL, pW: sp.pW, pH: sp.pH, pWt: sp.pWt, qty: 20 }])
+  }
 
   // Single-product calcs
   const activeDiv = VOL_DIVS.includes(volDiv) ? volDiv : customDiv
@@ -621,6 +644,53 @@ export default function CartonCalcPage() {
               </div>
             )}
 
+            {/* ── Saved products history ── */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <button
+                onClick={() => setShowSaved(v => !v)}
+                className="w-full flex items-center gap-2 px-5 py-3.5 hover:bg-slate-50 transition-colors text-left"
+              >
+                <Bookmark className="h-4 w-4 text-[#5b5bd6] shrink-0"/>
+                <span className="text-sm font-semibold text-gray-700">历史产品库</span>
+                {savedProds.length > 0 && (
+                  <span className="text-xs font-medium text-[#5b5bd6] bg-[#5b5bd6]/10 rounded-full px-2 py-0.5">{savedProds.length} 个</span>
+                )}
+                <span className="ml-auto text-gray-400 shrink-0">
+                  {showSaved ? <ChevronUp className="h-4 w-4"/> : <ChevronDown className="h-4 w-4"/>}
+                </span>
+              </button>
+              {showSaved && (
+                <div className="border-t border-gray-100 p-4">
+                  {savedProds.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-3">
+                      暂无记录 — 在下方产品列表每行末尾点击 <Bookmark className="h-3.5 w-3.5 inline align-text-bottom"/> 即可保存
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                      {savedProds.map(sp => (
+                        <div key={sp.id} className="rounded-xl border border-gray-100 bg-slate-50 p-3 flex flex-col gap-1">
+                          <div className="flex items-start justify-between gap-1">
+                            <p className="text-sm font-semibold text-gray-700 leading-snug truncate flex-1">{sp.name}</p>
+                            <button onClick={() => deleteSavedProd(sp.id)} className="text-gray-300 hover:text-red-400 transition-colors shrink-0 mt-0.5">
+                              <X className="h-3.5 w-3.5"/>
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500">{sp.pL} × {sp.pW} × {sp.pH} cm</p>
+                          <p className="text-xs text-gray-400">{sp.pWt} kg</p>
+                          <button
+                            onClick={() => addFromSaved(sp)}
+                            className="mt-1.5 text-xs font-medium text-[#5b5bd6] border border-[#5b5bd6]/30 rounded-lg py-1.5 hover:bg-[#5b5bd6] hover:text-white hover:border-[#5b5bd6] transition-colors"
+                          >
+                            + 加入列表
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Product table */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center justify-between mb-3">
@@ -662,9 +732,14 @@ export default function CartonCalcPage() {
                           </td>
                         ))}
                         <td className="py-2 pl-1">
-                          <button onClick={() => removeProduct(p.id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors">
-                            <Trash2 className="h-4 w-4"/>
-                          </button>
+                          <div className="flex gap-0.5">
+                            <button onClick={() => saveProduct(p)} title="保存到历史产品库" className="p-1 text-gray-300 hover:text-[#5b5bd6] transition-colors">
+                              <Bookmark className="h-4 w-4"/>
+                            </button>
+                            <button onClick={() => removeProduct(p.id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors">
+                              <Trash2 className="h-4 w-4"/>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
