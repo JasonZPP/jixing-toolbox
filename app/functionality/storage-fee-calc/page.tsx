@@ -31,8 +31,8 @@ const PRODUCT_TYPE_LABELS: Record<ProductType, string> = {
   hazmat_oversize: '危险品（大件）',
 }
 
-// Inventory Storage Utilization Surcharge — indexed by weeks of supply upper bound
-const UTIL_TIERS: Array<{ max: number; rate: number; label: string }> = [
+// Inventory Storage Utilization Surcharge — product-type specific rates ($/cf/month)
+const UTIL_TIERS_STANDARD: Array<{ max: number; rate: number; label: string }> = [
   { max: 22,  rate: 0.00, label: '≤22 周' },
   { max: 26,  rate: 0.17, label: '23–26 周' },
   { max: 30,  rate: 0.23, label: '27–30 周' },
@@ -45,19 +45,36 @@ const UTIL_TIERS: Array<{ max: number; rate: number; label: string }> = [
   { max: Infinity, rate: 1.88, label: '>52 周' },
 ]
 
-function utilRateFromWeeks(weeks: number): number {
-  return UTIL_TIERS.find(t => weeks <= t.max)?.rate ?? 1.88
+const UTIL_TIERS_OVERSIZE: Array<{ max: number; rate: number; label: string }> = [
+  { max: 26,  rate: 0.00, label: '≤26 周' },
+  { max: 30,  rate: 0.08, label: '27–30 周' },
+  { max: 34,  rate: 0.11, label: '31–34 周' },
+  { max: 38,  rate: 0.14, label: '35–38 周' },
+  { max: 42,  rate: 0.18, label: '39–42 周' },
+  { max: 46,  rate: 0.24, label: '43–46 周' },
+  { max: 50,  rate: 0.31, label: '47–50 周' },
+  { max: 52,  rate: 0.40, label: '51–52 周' },
+  { max: Infinity, rate: 0.66, label: '>52 周' },
+]
+
+function getUtilTiers(pt: ProductType) {
+  return (pt === 'oversize' || pt === 'hazmat_oversize') ? UTIL_TIERS_OVERSIZE : UTIL_TIERS_STANDARD
 }
 
-// 2026 Aged Inventory Surcharge ($/cf/month)
+function utilRateFromWeeks(weeks: number, pt: ProductType): number {
+  const tiers = getUtilTiers(pt)
+  return tiers.find(t => weeks <= t.max)?.rate ?? tiers[tiers.length - 1].rate
+}
+
+// 2024 Aged Inventory Surcharge ($/cf/month)
 function agedSurchargeRate(days: number): number {
   if (days <= 180) return 0
   if (days <= 210) return 0.50
   if (days <= 240) return 1.00
   if (days <= 270) return 1.50
-  if (days <= 300) return 3.80
-  if (days <= 330) return 4.65
-  if (days <= 365) return 5.55
+  if (days <= 300) return 5.45
+  if (days <= 330) return 5.70
+  if (days <= 365) return 5.90
   if (days <= 455) return 6.90
   return 10.00
 }
@@ -77,7 +94,7 @@ export default function StorageFeePage() {
 
   const isPeak = month >= 10 && month <= 12
   const baseRate = BASE_RATE[productType][isPeak ? 'peak' : 'off']
-  const utilSurcharge = utilRateFromWeeks(weeksOfSupply)
+  const utilSurcharge = utilRateFromWeeks(weeksOfSupply, productType)
 
   const addRow = () => setRows(p => [...p, { id: nextId++, name: `SKU-00${p.length + 1}`, length: 10, width: 8, height: 4, units: 100, ageDays: 30 }])
   const removeRow = (id: number) => setRows(p => p.filter(r => r.id !== id))
@@ -98,7 +115,8 @@ export default function StorageFeePage() {
   }), { base: 0, util: 0, aged: 0, total: 0 })
 
   const ic = 'w-full text-right border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5b5bd6]/40'
-  const activeTier = UTIL_TIERS.find(t => weeksOfSupply <= t.max)
+  const utilTiers = getUtilTiers(productType)
+  const activeTier = utilTiers.find(t => weeksOfSupply <= t.max)
 
   return (
     <ToolLayout title="FBA全能仓储费计算器" description="基本月度仓储费 + 仓储利用率附加费 + 超龄库存附加费，支持多SKU批量计算">
@@ -141,7 +159,7 @@ export default function StorageFeePage() {
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <p className="text-xs font-semibold text-blue-700 mb-2">仓储利用率附加费分段（按库存供应周数）</p>
             <div className="grid grid-cols-5 gap-1">
-              {UTIL_TIERS.map(t => (
+              {utilTiers.map(t => (
                 <div key={t.label} className={`rounded-lg px-2 py-1.5 text-center text-xs border ${activeTier?.label === t.label ? 'bg-[#5b5bd6] text-white border-[#5b5bd6]' : 'bg-white text-gray-600 border-blue-100'}`}>
                   <div className="font-medium">{t.label}</div>
                   <div>{t.rate === 0 ? '免收' : `$${t.rate.toFixed(2)}/cf`}</div>
@@ -153,7 +171,7 @@ export default function StorageFeePage() {
 
         <p className="text-xs text-gray-400">
           基础费率 <span className="font-medium text-[#5b5bd6]">${baseRate}/立方英尺</span>（{PRODUCT_TYPE_LABELS[productType]}·{isPeak ? '旺季' : '淡季'}）
-          · 利用率附加费 <span className="font-medium text-[#5b5bd6]">${utilSurcharge.toFixed(2)}/cf</span>（{activeTier?.label}）。
+          · 利用率附加费 <span className="font-medium text-[#5b5bd6]">${utilSurcharge.toFixed(2)}/cf</span>（{activeTier?.label}，{(productType === 'oversize' || productType === 'hazmat_oversize') ? '大件费率' : '标准尺寸费率'}）。
           超龄附加费按库龄天数自动分段（181天起，455天以上 $10.00/cf）。
         </p>
 
@@ -213,8 +231,8 @@ export default function StorageFeePage() {
         {/* Aged inventory reference */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-700 space-y-1">
           <p className="font-medium">超龄库存附加费分段（$/立方英尺/月）</p>
-          <p>181–210天 +$0.50 ｜ 211–240天 +$1.00 ｜ 241–270天 +$1.50 ｜ 271–300天 +$3.80 ｜ 301–330天 +$4.65 ｜ 331–365天 +$5.55 ｜ 366–455天 +$6.90 ｜ <span className="font-semibold">455天以上 +$10.00</span></p>
-          <p className="text-amber-600">注：费率数据参考亚马逊2026年收费标准，实际以后台费用预览为准。</p>
+          <p>181–210天 +$0.50 ｜ 211–240天 +$1.00 ｜ 241–270天 +$1.50 ｜ 271–300天 +$5.45 ｜ 301–330天 +$5.70 ｜ 331–365天 +$5.90 ｜ 366–455天 +$6.90 ｜ <span className="font-semibold">455天以上 +$10.00</span></p>
+          <p className="text-amber-600">注：费率数据参考亚马逊2024年收费标准，实际以后台费用预览为准。</p>
         </div>
       </div>
     </ToolLayout>

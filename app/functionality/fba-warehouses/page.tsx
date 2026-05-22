@@ -15,6 +15,7 @@ export default function FbaWarehousesPage() {
   const [country, setCountry] = useState('全部')
   const [usRegion, setUsRegion] = useState('全部')
   const [stateFilter, setStateFilter] = useState('全部')
+  const [remoteOnly, setRemoteOnly] = useState(false)
   const [copied, setCopied] = useState('')
 
   const countries = useMemo(
@@ -29,8 +30,9 @@ export default function FbaWarehousesPage() {
     const q = query.toLowerCase()
     return FBA_WAREHOUSES.filter(w => {
       if (country !== '全部' && w.country !== country) return false
-      if (w.country === 'US' && usRegion !== '全部' && usRegion !== usRegionOf(w.state)) return false
+      if (w.country === 'US' && usRegion !== '全部' && usRegion !== regionOf(w.state)) return false
       if (w.country === 'US' && stateFilter !== '全部' && w.state !== stateFilter) return false
+      if (remoteOnly && !w.remote) return false
       if (!q) return true
       return (
         w.code.toLowerCase().includes(q) ||
@@ -40,7 +42,7 @@ export default function FbaWarehousesPage() {
         w.zip.toLowerCase().includes(q)
       )
     })
-  }, [query, country, usRegion, stateFilter])
+  }, [query, country, usRegion, stateFilter, remoteOnly])
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text)
@@ -48,7 +50,7 @@ export default function FbaWarehousesPage() {
     setTimeout(() => setCopied(''), 1200)
   }
 
-  const reset = () => { setQuery(''); setCountry('全部'); setUsRegion('全部'); setStateFilter('全部') }
+  const reset = () => { setQuery(''); setCountry('全部'); setUsRegion('全部'); setStateFilter('全部'); setRemoteOnly(false) }
 
   return (
     <ToolLayout title="FBA仓库查询" description="全球FBA仓库地址查询，支持按国家、地区、州筛选，点击单元格一键复制">
@@ -84,6 +86,11 @@ export default function FbaWarehousesPage() {
             </select>
           )}
 
+          <label className="flex items-center gap-1.5 cursor-pointer text-sm text-gray-600 border border-gray-200 rounded-xl px-3 py-2 hover:bg-slate-50">
+            <input type="checkbox" checked={remoteOnly} onChange={e => setRemoteOnly(e.target.checked)} className="accent-[#5b5bd6]"/>
+            仅显示偏远地区
+          </label>
+
           <button onClick={reset} className="text-sm text-gray-500 hover:text-[#5b5bd6] border border-gray-200 rounded-xl px-3 py-2">
             重置筛选
           </button>
@@ -94,10 +101,10 @@ export default function FbaWarehousesPage() {
         </p>
 
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="grid grid-cols-[5rem_2.5rem_minmax(0,1fr)_7rem_4rem_5rem_4rem] bg-slate-50 border-b border-gray-100 px-4 py-2 text-xs text-gray-500 font-semibold uppercase">
-            <span>代码</span>
+          <div className="grid grid-cols-[6rem_2.5rem_minmax(0,1fr)_7rem_4rem_5rem_4rem] bg-slate-50 border-b border-gray-100 px-4 py-2 text-xs text-gray-500 font-semibold uppercase">
+            <span>代码（点击复制）</span>
             <span>国家</span>
-            <span>地址</span>
+            <span>地址（点击复制）</span>
             <span>城市</span>
             <span>州/省</span>
             <span>邮编</span>
@@ -105,11 +112,13 @@ export default function FbaWarehousesPage() {
           </div>
           <div className="overflow-y-auto max-h-[560px]">
             {filtered.map(w => {
-              const regionLabel = w.country === 'US' ? usRegionOf(w.state) : (COUNTRY_NAMES[w.country] ?? w.country)
+              const regionLabel = w.country === 'US' ? regionOf(w.state) : (COUNTRY_NAMES[w.country] ?? w.country)
               return (
-                <div key={w.code} className="grid grid-cols-[5rem_2.5rem_minmax(0,1fr)_7rem_4rem_5rem_4rem] px-4 py-2.5 border-b border-gray-50 hover:bg-slate-50 text-sm items-center gap-1">
+                <div key={w.code} className="grid grid-cols-[6rem_2.5rem_minmax(0,1fr)_7rem_4rem_5rem_4rem] px-4 py-2.5 border-b border-gray-50 hover:bg-slate-50 text-sm items-center gap-1">
                   <button onClick={() => copy(w.code)} className="font-bold text-[#5b5bd6] text-left hover:underline flex items-center gap-1">
-                    {copied === w.code ? <Check className="h-3 w-3 text-green-500 flex-shrink-0"/> : null}{w.code}
+                    {copied === w.code ? <Check className="h-3 w-3 text-green-500 flex-shrink-0"/> : null}
+                    {w.code}
+                    {w.remote && <span className="ml-1 text-[9px] bg-red-100 text-red-600 rounded px-1 py-0.5 font-semibold leading-none">偏远</span>}
                   </button>
                   <span className="text-xs text-gray-400 font-medium">{w.country}</span>
                   <button onClick={() => copy(w.address)} className="text-gray-600 text-left hover:text-[#5b5bd6] hover:underline truncate pr-1 text-xs">
@@ -132,10 +141,10 @@ export default function FbaWarehousesPage() {
   )
 }
 
-function usRegionOf(state: string): string {
-  const WEST_STATES = ['CA','WA','OR','NV','AZ','UT','CO','ID','MT','NM','WY','AK','HI']
-  const CENTRAL_STATES = ['TX','IL','IN','OH','MO','OK','KS','MN','WI','IA','NE','ND','SD','TN','KY','MI','GA','MS']
-  if (WEST_STATES.includes(state)) return '美西'
-  if (CENTRAL_STATES.includes(state)) return '美中'
+function regionOf(state: string): string {
+  const WEST = ['CA','WA','OR','NV','AZ','UT','CO','ID','MT','NM','WY','AK','HI']
+  const CENTRAL = ['TX','IL','IN','OH','MO','OK','KS','MN','WI','IA','NE','ND','SD','TN','KY','MI','GA','MS']
+  if (WEST.includes(state)) return '美西'
+  if (CENTRAL.includes(state)) return '美中'
   return '美东'
 }
