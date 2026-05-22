@@ -306,7 +306,7 @@ export default function PromotionStackingPage() {
           <p className="font-semibold text-blue-700">关于「可自主选择」的叠加说明</p>
           <p>只有当优惠券和促销（一一对应）都选择「是，允许叠加使用」时，促销才会叠加使用，否则的话，系统会在两个优惠中取优惠更大的那一个。</p>
           <p className="font-semibold text-blue-700 mt-2">本工具计算逻辑说明</p>
-          <p>· <strong>优先扣减折扣</strong>：首先应用"价格折扣"(Price Discount)以确定基础折扣价格。</p>
+          <p>· <strong>优先扣减折扣</strong>：首先应用&ldquo;价格折扣&rdquo;(Price Discount)以确定基础折扣价格。</p>
           <p>· <strong>优惠券折扣</strong>：随后的优惠券和其他促销活动通常是在上一步的价格折扣活动基础上进行计算，多张优惠券取折扣比例最大的（取 10%+20%+30% 总折比例）。</p>
           <p className="text-orange-500 mt-1">⚠ 注：计算金额仅供参考，实际金额请以亚马逊后台最终结算为准。</p>
         </div>
