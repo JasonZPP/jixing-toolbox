@@ -2,17 +2,30 @@
 import { useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
 
-interface Activity { key: string; name: string; note: string }
+interface Activity { key: string; name: string; note: string; group: string }
 const ACTIVITIES: Activity[] = [
-  { key: 'sale', name: '价格折扣（Sale Price）', note: '设定新的折后基础价，后续优惠基于此价格计算' },
-  { key: 'coupon', name: '优惠券（Coupon）', note: '在折后价基础上再减，单个商品通常仅一张优惠券生效' },
-  { key: 'ped', name: '专享折扣（Prime 会员专享）', note: '面向 Prime 会员的额外折扣' },
-  { key: 'btc', name: '品牌定制优惠券', note: '面向指定人群的品牌定制优惠券' },
-  { key: 'btp', name: '品牌定制促销', note: '面向指定人群的品牌定制促销' },
-  { key: 'social', name: '社交媒体促销代码', note: '通过站外社媒分发的促销代码' },
-  { key: 'deal', name: '秒杀 / 主推折扣（Deal）', note: '限时秒杀或七天促销' },
-  { key: 'b2b', name: 'B2B 企业价格', note: '面向企业买家的数量阶梯折扣' },
+  { key: 'sale',         name: '价格折扣（Sale Price）',       group: '基础',  note: '设定折后基础价，后续所有优惠基于此价格叠加计算' },
+  { key: 'coupon',       name: '优惠券（Coupon）',             group: '基础',  note: '在折后价基础上再减，同一商品通常仅一张优惠券生效' },
+  { key: 'ped',          name: 'Prime 会员专享折扣',           group: '会员',  note: '面向 Prime 会员的额外折扣，基于当前价叠加' },
+  { key: 'btc',          name: '品牌定制优惠券',               group: '品牌',  note: '面向指定受众人群的品牌定制优惠券' },
+  { key: 'btp',          name: '品牌定制促销',                 group: '品牌',  note: '面向指定受众人群的品牌定制促销活动' },
+  { key: 'social',       name: '社交媒体促销代码',             group: '品牌',  note: '通过站外社媒渠道分发的专属促销代码' },
+  { key: 'deal',         name: '秒杀 / 七天促销（Deal）',      group: '限时',  note: '限时秒杀或七天主推折扣，需申请并通过亚马逊审核' },
+  { key: 'lightning',   name: '闪购（Lightning Deal）',        group: '限时',  note: '4小时限时秒杀，展示在 Deals 页面，流量集中' },
+  { key: 'outlet',       name: '亚马逊特卖场（Outlet）',       group: '清仓',  note: '对即将到期或过季库存进行折扣清仓，由亚马逊审核入场' },
+  { key: 'unrestricted', name: '无限制促销（Percentage Off）',  group: '基础',  note: '面向所有买家无资格限制的折扣，可与优惠券等叠加' },
+  { key: 'prime_day',    name: 'Prime 会员日专属折扣',         group: '会员',  note: '仅在 Prime Day 活动期间生效的限时专属折扣' },
+  { key: 'b2b',          name: 'B2B 企业价格',                 group: '企业',  note: '面向企业买家的数量阶梯折扣，按采购量递增优惠' },
 ]
+
+const GROUP_COLORS: Record<string, string> = {
+  基础: 'bg-slate-100 text-slate-600',
+  会员: 'bg-blue-50 text-blue-600',
+  品牌: 'bg-purple-50 text-purple-600',
+  限时: 'bg-orange-50 text-orange-600',
+  清仓: 'bg-red-50 text-red-600',
+  企业: 'bg-green-50 text-green-600',
+}
 
 type StackMode = 'sequential' | 'best'
 
@@ -36,9 +49,17 @@ export default function PromotionStackingPage() {
   const enough = entries.length >= 2
 
   let finalPrice = price
+  const steps: Array<{ name: string; discount: number; after: number }> = []
+
   if (entries.length > 0) {
     if (mode === 'sequential') {
-      finalPrice = entries.reduce((p, [, d]) => p * (1 - d / 100), price)
+      let cur = price
+      for (const [key, d] of entries) {
+        const after = cur * (1 - d / 100)
+        steps.push({ name: ACTIVITIES.find(a => a.key === key)?.name ?? key, discount: d, after })
+        cur = after
+      }
+      finalPrice = cur
     } else {
       const best = Math.max(...entries.map(([, d]) => d))
       finalPrice = price * (1 - best / 100)
@@ -69,6 +90,7 @@ export default function PromotionStackingPage() {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={on} onChange={() => toggle(a.key)}/>
                     <span className="text-sm font-medium text-gray-700">{a.name}</span>
+                    <span className={`text-[10px] rounded px-1.5 py-0.5 font-medium ${GROUP_COLORS[a.group]}`}>{a.group}</span>
                   </label>
                   <p className="text-xs text-gray-400 mt-1 ml-6">{a.note}</p>
                   {on && (
@@ -103,6 +125,22 @@ export default function PromotionStackingPage() {
             <h3 className="text-sm font-bold text-[#5b5bd6] mb-3">计算结果</h3>
             {enough ? (
               <div className="space-y-1.5">
+                {/* Sequential steps */}
+                {mode === 'sequential' && steps.length > 0 && (
+                  <div className="mb-3 space-y-1 border-b border-[#5b5bd6]/10 pb-3">
+                    <p className="text-xs text-gray-400 mb-1">折扣链路（逐步计算）</p>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-600 flex-wrap">
+                      <span className="font-medium">${price.toFixed(2)}</span>
+                      {steps.map((s, i) => (
+                        <span key={i} className="flex items-center gap-1">
+                          <span className="text-gray-400">→</span>
+                          <span className="bg-white border border-[#5b5bd6]/20 rounded px-1.5 py-0.5">-{s.discount}%</span>
+                          <span className="font-medium">${s.after.toFixed(2)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {([
                   ['商品原价', `$${price.toFixed(2)}`, 'text-gray-700'],
                   ['总折扣率', `${totalDiscount.toFixed(1)}%`, 'text-orange-500 font-semibold'],
@@ -125,6 +163,7 @@ export default function PromotionStackingPage() {
             <ul className="list-disc list-inside space-y-1 ml-1">
               <li>价格折扣会形成新的基础价，优惠券、专享折扣等基于折后价再计算（折上折）。</li>
               <li>同一订单通常仅一张优惠券生效；多张优惠券一般不叠加，系统取力度更大的一个。</li>
+              <li>Lightning Deal 与 Prime Day 折扣一般不与其他促销叠加，需在后台确认规则。</li>
               <li>叠加多重促销可能造成价格远低于预期，建议先用本工具测算最终售价。</li>
               <li>计算结果仅供参考，实际扣除请以亚马逊后台最终结算为准。</li>
             </ul>
