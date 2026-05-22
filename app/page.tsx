@@ -276,32 +276,27 @@ export default function HomePage() {
                   <span className="text-[9px] text-black/20">{group.tools.length}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {group.tools.map(tool => (
-                    <Link
-                      key={tool.slug}
-                      href={`/functionality/${tool.slug}`}
-                      className="group bg-white border border-black/[0.06] rounded-xl p-4 hover:border-[#5b5bd6]/40 hover:shadow-sm transition-all relative overflow-hidden"
-                    >
-                      <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${
-                          tool.color === 'blue'
-                            ? 'bg-[#5b5bd6]/10 text-[#5b5bd6]'
-                            : 'bg-orange-400/15 text-orange-500'
-                        }`}
-                      >
-                        <ToolIcon name={tool.icon} />
-                      </div>
-                      <p className="text-sm font-bold text-gray-800 leading-snug mb-1">
-                        {tool.name}
-                      </p>
-                      <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">
-                        {tool.description}
-                      </p>
-                      <span className="absolute bottom-3 right-3 text-[#5b5bd6]/40 opacity-0 group-hover:opacity-100 transition-opacity text-xs">
-                        →
-                      </span>
-                    </Link>
-                  ))}
+                  {group.tools.map(tool => {
+                    const cardClass = "group bg-white border border-black/[0.06] rounded-xl p-4 hover:border-[#5b5bd6]/40 hover:shadow-sm transition-all relative overflow-hidden"
+                    const inner = (
+                      <>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${tool.color === 'blue' ? 'bg-[#5b5bd6]/10 text-[#5b5bd6]' : 'bg-orange-400/15 text-orange-500'}`}>
+                          <ToolIcon name={tool.icon} />
+                        </div>
+                        <p className="text-sm font-bold text-gray-800 leading-snug mb-1 flex items-center gap-1">
+                          {tool.name}
+                          {tool.externalUrl && <Icons.ExternalLink className="w-3 h-3 text-black/20 flex-shrink-0"/>}
+                        </p>
+                        <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">{tool.description}</p>
+                        <span className="absolute bottom-3 right-3 text-[#5b5bd6]/40 opacity-0 group-hover:opacity-100 transition-opacity text-xs">→</span>
+                      </>
+                    )
+                    return tool.externalUrl ? (
+                      <a key={tool.slug} href={tool.externalUrl} target="_blank" rel="noopener noreferrer" className={cardClass}>{inner}</a>
+                    ) : (
+                      <Link key={tool.slug} href={`/functionality/${tool.slug}`} className={cardClass}>{inner}</Link>
+                    )
+                  })}
                 </div>
               </section>
             ))

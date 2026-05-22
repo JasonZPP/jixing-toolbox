@@ -7,4 +7,5 @@ export interface Tool {
   category: ToolCategory
   icon: string
   color: 'blue' | 'orange'
+  externalUrl?: string
 }

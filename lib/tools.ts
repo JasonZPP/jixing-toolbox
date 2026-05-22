@@ -16,12 +16,14 @@ export const tools: Tool[] = [
   { slug: 'listing-check', name: 'Listing自检工具', description: '检查标题字数、要点格式、关键词密度等规则，提升Listing质量分', category: 'ops', icon: 'ClipboardCheck', color: 'orange' },
   { slug: 'fba-warehouses', name: 'FBA仓库查询', description: '全美FBA仓库地址一览，按州筛选，快速确认发货目的地', category: 'ops', icon: 'MapPin', color: 'orange' },
   { slug: 'amazon-global', name: '亚马逊批量查询', description: '批量验证ASIN格式并生成各站点商品链接，多站点运营必备', category: 'ops', icon: 'Search', color: 'orange' },
-  // 图文工具 (5)
+  // 图文工具 (7)
   { slug: 'image-compression', name: '图片压缩与格式转换', description: '无损/有损压缩，支持JPG/PNG/WebP互转，批量处理', category: 'image', icon: 'ImageDown', color: 'blue' },
   { slug: 'image-resizer', name: '图片尺寸修改工具', description: '批量修改图片尺寸，支持等比缩放与自定义尺寸', category: 'image', icon: 'Scaling', color: 'blue' },
   { slug: 'image-to-pdf-batch', name: '批量图片转PDF', description: '多张图片合并为单个PDF，支持排序与页面设置', category: 'image', icon: 'FileImage', color: 'blue' },
   { slug: 'pdf-image-watermark-redaction', name: 'PDF / 图片 水印与打码工具', description: '添加文字水印或对敏感区域马赛克打码，保护商业文件', category: 'image', icon: 'Stamp', color: 'blue' },
   { slug: 'image-batch-renamer', name: '图片批量重命名工具', description: '按规则批量重命名图片文件，支持前缀/序号/日期，打包下载', category: 'image', icon: 'FilePen', color: 'blue' },
+  { slug: 'online-ps', name: '在线PS', description: '在线图片编辑工具，抠图、修图、合成一站搞定', category: 'image', icon: 'Wand2', color: 'blue', externalUrl: 'https://tugaigai.com/online_ps/' },
+  { slug: 'image-upscaler', name: '图片高清放大', description: 'AI智能放大图片，最高4倍无损放大，保留细节', category: 'image', icon: 'ZoomIn', color: 'blue', externalUrl: 'https://imgupscaler.com/' },
   // 其他工具 (1)
   { slug: 'carton-calc-advanced', name: '外箱装箱计算器', description: '输入产品与外箱尺寸，计算装箱数量、总重量与体积重', category: 'other', icon: 'Package', color: 'orange' },
 ]
