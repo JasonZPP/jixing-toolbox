@@ -18,6 +18,84 @@ type CategoryKey = (typeof CATEGORIES)[number]['key']
 
 const CATEGORY_ORDER = ['ad', 'ops', 'image', 'other'] as const
 
+function daysUntil(target: Date): number {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  target.setHours(0, 0, 0, 0)
+  return Math.max(0, Math.round((target.getTime() - now.getTime()) / 86400000))
+}
+
+function getWeekNumber(d: Date): number {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  const dayNum = date.getUTCDay() || 7
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1))
+  return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
+
+function blackFriday(year: number): Date {
+  // 4th Thursday of November + 1 day
+  const nov1 = new Date(year, 10, 1)
+  const thu = (4 - nov1.getDay() + 7) % 7  // days until first Thursday
+  return new Date(year, 10, 1 + thu + 21 + 1)
+}
+
+// Chinese New Year dates (hardcoded for next few years)
+const CNY: Record<number, [number, number]> = {
+  2026: [1, 17],  // Feb 17, 2026
+  2027: [2, 5],   // Feb 5, 2027 (approx)
+  2028: [1, 26],  // Jan 26, 2028
+}
+
+function nextCNY(): Date {
+  const now = new Date()
+  const year = now.getFullYear()
+  const [m, d] = CNY[year] ?? [1, 28]
+  const candidate = new Date(year, m - 1, d)
+  if (candidate > now) return candidate
+  const [nm, nd] = CNY[year + 1] ?? [1, 28]
+  return new Date(year + 1, nm - 1, nd)
+}
+
+function nextDate(month: number, day: number): Date {
+  const now = new Date()
+  const candidate = new Date(now.getFullYear(), month - 1, day)
+  if (candidate > now) return candidate
+  return new Date(now.getFullYear() + 1, month - 1, day)
+}
+
+function CountdownBar() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const week = getWeekNumber(now)
+  const yearEnd = new Date(year + 1, 0, 1)
+  const bf = blackFriday(year) > now ? blackFriday(year) : blackFriday(year + 1)
+  const cm = new Date(bf); cm.setDate(cm.getDate() + 3) // Monday after BF
+
+  const items = [
+    { label: `${year}年第`, value: String(week), suffix: '周', color: 'text-[#5b5bd6]' },
+    { label: '距2027年还有', value: String(daysUntil(yearEnd)), suffix: '天', color: 'text-orange-500' },
+    { label: '距黑五还有', value: String(daysUntil(bf)), suffix: '天', color: 'text-red-500' },
+    { label: '距网络星期一还有', value: String(daysUntil(cm)), suffix: '天', color: 'text-red-500' },
+    { label: '距圣诞节还有', value: String(daysUntil(nextDate(12, 25))), suffix: '天', color: 'text-red-500' },
+    { label: '距春节还有', value: String(daysUntil(nextCNY())), suffix: '天', color: 'text-red-500' },
+    { label: '距情人节还有', value: String(daysUntil(nextDate(2, 14))), suffix: '天', color: 'text-red-500' },
+  ]
+
+  return (
+    <div className="bg-white border-b border-black/[0.05] px-5 py-1.5 flex items-center gap-4 flex-wrap text-[11px] text-gray-400 overflow-x-auto">
+      {items.map((item, i) => (
+        <span key={i} className="whitespace-nowrap flex items-center gap-0.5 flex-shrink-0">
+          {item.label}
+          <span className={`font-bold mx-0.5 ${item.color}`}>{item.value}</span>
+          {item.suffix}
+          {i < items.length - 1 && <span className="ml-3 text-gray-200">|</span>}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function ToolIcon({ name }: { name: string }) {
   const Icon =
     (Icons as unknown as Record<string, React.FC<{ className?: string }>>)[name] ??
@@ -156,6 +234,9 @@ export default function HomePage() {
             ))}
           </div>
         </div>
+
+        {/* Countdown bar */}
+        <CountdownBar />
 
         {/* Tool Sections */}
         <div className="flex-1 px-5 py-4 flex flex-col gap-6">

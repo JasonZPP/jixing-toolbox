@@ -1,7 +1,8 @@
 'use client'
 import { useMemo, useState } from 'react'
 import ToolLayout from '@/components/ToolLayout'
-import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
+import { CheckCircle, XCircle, AlertTriangle, Clock as ClockIcon } from 'lucide-react'
+const Icons = { Clock: ClockIcon }
 
 const BANNED_SYMBOLS = ['!', '?', '$', '~', '*', '#', '@', '^', '<', '>', '{', '}']
 const BANNED_PHRASES = [
@@ -11,7 +12,7 @@ const BANNED_PHRASES = [
 ]
 const LOWERCASE_OK = new Set(['a', 'an', 'the', 'and', 'or', 'for', 'of', 'to', 'in', 'on', 'with', 'by', 'at'])
 
-type Status = 'pass' | 'warn' | 'fail'
+type Status = 'pass' | 'warn' | 'fail' | 'pending'
 interface Check { label: string; status: Status; detail: string }
 
 function escapeRe(s: string) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
@@ -36,21 +37,21 @@ export default function ListingCheckPage() {
     })
     const titleSyms = BANNED_SYMBOLS.filter(s => title.includes(s))
     out.push({
-      label: '标题禁用符号', status: titleSyms.length ? 'fail' : 'pass',
-      detail: titleSyms.length ? `含禁用符号：${titleSyms.join(' ')}` : '未发现禁用符号',
+      label: '标题禁用符号', status: !title ? 'pending' : titleSyms.length ? 'fail' : 'pass',
+      detail: !title ? '请先填写标题' : titleSyms.length ? `含禁用符号：${titleSyms.join(' ')}` : '未发现禁用符号',
     })
     out.push({
-      label: '标题结尾标点', status: /[.,;:!?，。；：]$/.test(title.trim()) ? 'fail' : 'pass',
-      detail: /[.,;:!?，。；：]$/.test(title.trim()) ? '标题结尾不应有标点符号' : '结尾无标点',
+      label: '标题结尾标点', status: !title ? 'pending' : /[.,;:!?，。；：]$/.test(title.trim()) ? 'fail' : 'pass',
+      detail: !title ? '请先填写标题' : /[.,;:!?，。；：]$/.test(title.trim()) ? '标题结尾不应有标点符号' : '结尾无标点',
     })
     out.push({
-      label: '标题非全大写', status: title && title === title.toUpperCase() && /[A-Z]/.test(title) ? 'fail' : 'pass',
-      detail: title && title === title.toUpperCase() && /[A-Z]/.test(title) ? '标题全大写会被降权' : '大小写正常',
+      label: '标题非全大写', status: !title ? 'pending' : title === title.toUpperCase() && /[A-Z]/.test(title) ? 'fail' : 'pass',
+      detail: !title ? '请先填写标题' : title === title.toUpperCase() && /[A-Z]/.test(title) ? '标题全大写会被降权' : '大小写正常',
     })
     const badCap = title.split(/\s+/).filter(w => /^[a-z]/.test(w) && !LOWERCASE_OK.has(w.toLowerCase()) && w.length > 1)
     out.push({
-      label: '标题首字母大写', status: badCap.length ? 'warn' : 'pass',
-      detail: badCap.length ? `未首字母大写（介词连词除外）：${badCap.slice(0, 5).join(' ')}` : '符合首字母大写规范',
+      label: '标题首字母大写', status: !title ? 'pending' : badCap.length ? 'warn' : 'pass',
+      detail: !title ? '请先填写标题' : badCap.length ? `未首字母大写（介词连词除外）：${badCap.slice(0, 5).join(' ')}` : '符合首字母大写规范',
     })
     const filled = bullets.filter(b => b.trim())
     out.push({
@@ -59,12 +60,12 @@ export default function ListingCheckPage() {
     })
     const longBullet = bullets.findIndex(b => b.length > 250)
     out.push({
-      label: '要点字符数', status: longBullet >= 0 ? 'warn' : 'pass',
-      detail: longBullet >= 0 ? `第 ${longBullet + 1} 条要点超 250 字符，移动端易被折叠` : '各要点长度合规',
+      label: '要点字符数', status: filled.length === 0 ? 'pending' : longBullet >= 0 ? 'warn' : 'pass',
+      detail: filled.length === 0 ? '请先填写五点描述' : longBullet >= 0 ? `第 ${longBullet + 1} 条要点超 250 字符，移动端易被折叠` : '各要点长度合规',
     })
     out.push({
-      label: '长描述字符数', status: desc.length > 2000 ? 'fail' : 'pass',
-      detail: desc.length > 2000 ? `${desc.length} 字符，超过 2000 上限` : `${desc.length} 字符`,
+      label: '长描述字符数', status: !desc ? 'pending' : desc.length > 2000 ? 'fail' : 'pass',
+      detail: !desc ? '请先填写长描述' : desc.length > 2000 ? `${desc.length} 字符，超过 2000 上限` : `${desc.length} 字符`,
     })
     const allText = [title, ...bullets, desc].join(' ').toLowerCase()
     const foundPhrases = BANNED_PHRASES.filter(p => allText.includes(p.toLowerCase()))
@@ -101,6 +102,7 @@ export default function ListingCheckPage() {
   }, [kwList, title, bullets, desc])
 
   const totalEmbed = kwStats.reduce((s, k) => s + k.count, 0)
+  const activeChecks = checks.filter(c => c.status !== 'pending')
   const passed = checks.filter(c => c.status === 'pass').length
 
   const setBullet = (i: number, v: string) => setBullets(p => p.map((b, idx) => idx === i ? v : b))
@@ -110,9 +112,11 @@ export default function ListingCheckPage() {
     pass: <CheckCircle className="h-5 w-5 text-green-600 shrink-0 mt-0.5"/>,
     warn: <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5"/>,
     fail: <XCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5"/>,
+    pending: <Icons.Clock className="h-5 w-5 text-gray-300 shrink-0 mt-0.5"/>,
   }
   const CARD: Record<Status, string> = {
-    pass: 'bg-green-50 border-green-200', warn: 'bg-orange-50 border-orange-200', fail: 'bg-red-50 border-red-200',
+    pass: 'bg-green-50 border-green-200', warn: 'bg-orange-50 border-orange-200',
+    fail: 'bg-red-50 border-red-200', pending: 'bg-gray-50 border-gray-200',
   }
 
   return (
@@ -151,8 +155,8 @@ export default function ListingCheckPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-gray-700">合规检查</h3>
-            <span className={`text-sm font-bold ${passed === checks.length ? 'text-green-600' : 'text-orange-500'}`}>
-              {passed}/{checks.length} 通过
+            <span className={`text-sm font-bold ${activeChecks.length > 0 && passed === activeChecks.length ? 'text-green-600' : 'text-orange-500'}`}>
+              {passed}/{activeChecks.length} 通过
             </span>
           </div>
           {checks.map(c => (
