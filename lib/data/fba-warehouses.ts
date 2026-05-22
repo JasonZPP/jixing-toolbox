@@ -267,7 +267,7 @@ export const FBA_WAREHOUSES: FbaWarehouse[] = [
   { code: 'RNO1', address: '1600 East Newlands Dr', city: 'Fernley', state: 'NV', zip: '89408', country: 'US' },
   { code: 'RNO3', address: '555 Milan Dr', city: 'Sparks', state: 'NV', zip: '89434', country: 'US' },
   // ── US · New Jersey ───────────────────────────────────────────────────────
-  { code: 'ABE8', address: '309 Cedar Lane', city: 'Florence', state: 'NJ', zip: '08045', country: 'US' },
+  { code: 'ABE8', address: '401 Independence Road', city: 'Florence', state: 'NJ', zip: '08518', country: 'US' },
   { code: 'ACY1', address: '240 Mantua Grove Rd', city: 'West Deptford', state: 'NJ', zip: '08066', country: 'US' },
   { code: 'ACY2', address: '1101 E Pearl St', city: 'Burlington', state: 'NJ', zip: '08016', country: 'US' },
   { code: 'ACY5', address: '2277 Center Square Rd', city: 'Logan Township', state: 'NJ', zip: '08085', country: 'US' },
@@ -327,7 +327,8 @@ export const FBA_WAREHOUSES: FbaWarehouse[] = [
   // ── US · North Dakota ─────────────────────────────────────────────────────
   { code: 'FAR1', address: '3701 40th Avenue N', city: 'Fargo', state: 'ND', zip: '58102', country: 'US', remote: true },
   // ── US · Ohio ─────────────────────────────────────────────────────────────
-  { code: 'AKC1', address: '2400 Roming Rd', city: 'Akron', state: 'OH', zip: '44320', country: 'US' },
+  { code: 'AKC1', address: '2450 Romig Rd', city: 'Akron', state: 'OH', zip: '44320', country: 'US' },
+  { code: 'AKR1', address: '4747 Rebar Ave NE', city: 'Canton', state: 'OH', zip: '44705', country: 'US' },
   { code: 'CLE2', address: '21500 Emery Rd', city: 'North Randall', state: 'OH', zip: '44128', country: 'US' },
   { code: 'CLE3', address: '1155 Babbitt Rd', city: 'Euclid', state: 'OH', zip: '44132', country: 'US' },
   { code: 'CLE5', address: '8685 Independence Parkway', city: 'Twinsburg', state: 'OH', zip: '44087', country: 'US' },
@@ -394,7 +395,7 @@ export const FBA_WAREHOUSES: FbaWarehouse[] = [
   { code: 'MEM3', address: '4249 Goodman Rd', city: 'Olive Branch', state: 'TN', zip: '38654', country: 'US' },
   { code: 'MEM5', address: '5155 Citation Dr', city: 'Memphis', state: 'TN', zip: '38118', country: 'US' },
   // ── US · Texas ────────────────────────────────────────────────────────────
-  { code: 'AFW1', address: '1511 NE Loop 820', city: 'Fort Worth', state: 'TX', zip: '76106', country: 'US' },
+  { code: 'AFW1', address: '1851 NE Loop 820', city: 'Fort Worth', state: 'TX', zip: '76131', country: 'US' },
   { code: 'AMA1', address: '2395 N Lakeside Dr', city: 'Amarillo', state: 'TX', zip: '79118', country: 'US', remote: true },
   { code: 'AUS2', address: '100 E Pecan St', city: 'Pflugerville', state: 'TX', zip: '78660', country: 'US' },
   { code: 'AUS3', address: '2000 Exchange Parkway', city: 'Waco', state: 'TX', zip: '76712', country: 'US' },
